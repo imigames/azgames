@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Free Game Zone preview image</title>
+  <desc id="desc">Dark arcade-style preview image for the browser games website.</desc>
+  <rect width="1200" height="630" fill="#1f2024"/>
+  <rect x="84" y="78" width="1032" height="474" rx="36" fill="#303236"/>
+  <circle cx="265" cy="284" r="118" fill="#ffd400"/>
+  <circle cx="906" cy="344" r="132" fill="#24a8ff"/>
+  <rect x="402" y="201" width="396" height="228" rx="24" fill="#050506"/>
+  <text x="600" y="334" text-anchor="middle" font-family="Arial, sans-serif" font-size="72" font-weight="900" fill="#ffffff">Free Game Zone</text>
+  <text x="600" y="398" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#ffd400">Free Browser Games</text>
+</svg>

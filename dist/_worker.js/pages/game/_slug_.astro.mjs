@@ -1,0 +1,1099 @@
+globalThis.process ??= {}; globalThis.process.env ??= {};
+import { e as createAstro, f as createComponent, r as renderTemplate, k as renderComponent, m as maybeRenderHead, h as addAttribute, u as unescapeHTML } from '../../chunks/astro/server_jqlxmikg.mjs';
+import { $ as $$MainLayout } from '../../chunks/MainLayout_UmvZxwvK.mjs';
+import { $ as $$GameCard } from '../../chunks/GameCard_CeQA5tCZ.mjs';
+import { a as getGamePageSchemas, $ as $$JsonLd } from '../../chunks/schema_ByaQQO49.mjs';
+import { a as getCategoryBySlug, g as getCategories } from '../../chunks/categories_Df5AheBz.mjs';
+import { g as getApprovedCommentsByGameSlug } from '../../chunks/comments_DOZvQxwy.mjs';
+import { c as getGameBySlug, d as getHomePageGames, e as getRelatedGames, f as getRandomGames } from '../../chunks/games_BbdWArb0.mjs';
+import { b as sanitizeGameArticleHtml, h as htmlToPlainText } from '../../chunks/html-sanitize_DC9IPhPx.mjs';
+import { g as getPublicSettings } from '../../chunks/settings_CPS68JRK.mjs';
+export { renderers } from '../../renderers.mjs';
+
+var __freeze = Object.freeze;
+var __defProp = Object.defineProperty;
+var __template = (cooked, raw) => __freeze(__defProp(cooked, "raw", { value: __freeze(raw || cooked.slice()) }));
+var _a;
+const $$Astro = createAstro("https://freegamezone.io");
+const prerender = false;
+const $$slug = createComponent(async ($$result, $$props, $$slots) => {
+  const Astro2 = $$result.createAstro($$Astro, $$props, $$slots);
+  Astro2.self = $$slug;
+  const slug = Astro2.params.slug;
+  if (!slug) {
+    return new Response(null, { status: 404 });
+  }
+  const game = await getGameBySlug(slug);
+  if (!game) {
+    return new Response(null, { status: 404 });
+  }
+  const category = await getCategoryBySlug(game.categorySlug);
+  const formattedCategoryLabel = category ? category.name : game.categorySlug.replace(/-games$/, "").split("-").map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+  const breadcrumbCategory = formattedCategoryLabel.endsWith("Games") ? formattedCategoryLabel : `${formattedCategoryLabel} Games`;
+  const embedUrl = Astro2.url.href;
+  const thumbnail = game.thumbnail ?? "";
+  const iframeUrl = game.iframeUrl ?? "";
+  const articleHtml = game.description?.trim() ? sanitizeGameArticleHtml(game.description) : "";
+  const articlePlainText = game.description?.trim() ? htmlToPlainText(game.description) : "";
+  const fallbackGameDescription = game.shortDescription ?? `Play ${game.title} online for free. Enjoy this browser game directly on our website.`;
+  const seoTitle = game.seoTitle ?? `${game.title} - Play Online`;
+  const seoDescription = game.seoDescription ?? game.shortDescription ?? (articlePlainText || `Play ${game.title} online for free. Enjoy this browser game directly on our website.`);
+  const gameInstructions = game.instructions ?? "Click Play Now to start the game. Use keyboard, mouse, or touch controls depending on the game.";
+  const activeCategory = game.categorySlug.replace(/-games$/, "");
+  const categoryUrlSlug = game.categorySlug.endsWith("-games") ? game.categorySlug : `${game.categorySlug}-games`;
+  const articleTags = ["browser games", "online games", "free games"];
+  const homePageGames = await getHomePageGames();
+  const hotGames = homePageGames.hotGames.filter((item) => item.slug !== game.slug).slice(0, 12);
+  const newGames = homePageGames.newGames.filter((item) => item.slug !== game.slug).slice(0, 12);
+  const relatedGames = await getRelatedGames(game, 12);
+  const randomGames = await getRandomGames(80);
+  const allCategories = await getCategories();
+  const settings = await getPublicSettings();
+  const gamePageSchemas = getGamePageSchemas({
+    settings,
+    game: { ...game, description: articlePlainText || game.description },
+    category,
+    relatedGames
+  });
+  const approvedComments = await getApprovedCommentsByGameSlug(game.slug, { page: 1, limit: 20 });
+  const formatCommentDate = (value) => value ? new Intl.DateTimeFormat("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  }).format(new Date(value)) : "";
+  const articleFeatures = [
+    `Fast ${formattedCategoryLabel.toLowerCase()} action designed for short browser sessions.`,
+    "Simple controls that are easy to learn and quick to replay.",
+    "Local progress-friendly structure with clear objectives and instant restarts.",
+    "Compact game page layout with related picks always close by."
+  ];
+  const wallGames = [
+    ...relatedGames,
+    ...hotGames,
+    ...newGames,
+    ...homePageGames.trendingGames,
+    ...homePageGames.popularGames,
+    ...homePageGames.featuredGames,
+    ...randomGames
+  ].filter((item, index, items) => item.slug !== game.slug && items.findIndex((entry) => entry.slug === item.slug) === index).slice(0, 72);
+  const gameWallSizePattern = [
+    "large",
+    "small",
+    "small",
+    "medium",
+    "small",
+    "wide",
+    "small",
+    "small",
+    "medium",
+    "small",
+    "small",
+    "wide",
+    "small",
+    "large",
+    "small",
+    "small",
+    "medium",
+    "small",
+    "small",
+    "small",
+    "wide",
+    "small",
+    "medium",
+    "small"
+  ];
+  const getWallTileSize = (index) => gameWallSizePattern[index % gameWallSizePattern.length];
+  const fallbackCategoryTiles = [
+    { name: "Adventure Games", slug: "adventure-games" },
+    { name: "Casual Games", slug: "casual-games" },
+    { name: "Puzzle Games", slug: "puzzle-games" },
+    { name: "Shooting Games", slug: "shooting-games" },
+    { name: "Clicker Games", slug: "clicker-games" },
+    { name: "Kids Games", slug: "kids-games" },
+    { name: "Io Games", slug: "io-games" },
+    { name: "Car Games", slug: "car-games" },
+    { name: "Sports Games", slug: "sports-games" },
+    { name: "2 Player Games", slug: "2-player-games" }
+  ];
+  const categoryIconMap = {
+    clicker: "\u2728",
+    io: ".IO",
+    adventure: "\u{1F9ED}",
+    "2-player": "\u{1F465}",
+    shooting: "\u{1F3AF}",
+    sports: "\u26BD",
+    car: "\u{1F697}",
+    puzzle: "\u{1F9E9}",
+    casual: "\u{1F3AE}",
+    kids: "\u{1F435}",
+    action: "\u{1F4A5}",
+    fighting: "\u2694\uFE0F",
+    horror: "\u{1F47B}",
+    racing: "\u{1F3C1}",
+    arcade: "\u{1F579}\uFE0F",
+    skill: "\u{1F3C6}",
+    running: "\u{1F3C3}",
+    cooking: "\u{1F373}",
+    "dress-up": "\u{1F457}",
+    brain: "\u{1F9E0}",
+    gun: "\u{1F52B}",
+    all: "\u{1F532}",
+    "all-categories": "\u{1F532}"
+  };
+  const normalizeCategoryKey = (value) => value.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").replace(/-games$/, "");
+  const getCategoryIcon = (category2) => {
+    const slugKey = normalizeCategoryKey(category2.slug);
+    const nameKey = normalizeCategoryKey(category2.name);
+    return categoryIconMap[slugKey] ?? categoryIconMap[nameKey] ?? "\u2B50";
+  };
+  const gamePageCategories = (allCategories.length > 0 ? allCategories : fallbackCategoryTiles).slice(0, 16).map((item) => ({
+    name: item.name,
+    slug: item.slug.endsWith("-games") ? item.slug : `${item.slug}-games`,
+    icon: getCategoryIcon(item)
+  }));
+  return renderTemplate(_a || (_a = __template(["", ` <script>
+  (() => {
+    const initGameActions = () => {
+      const player = document.querySelector('[data-game-player]');
+      const actionBar = document.querySelector('.game-action-buttons');
+
+      if (!player || !actionBar) {
+        return;
+      }
+
+      const slug = player.dataset.gameSlug || '';
+      const title = player.dataset.gameTitle || '';
+      const reportModal = document.querySelector('[data-report-modal]');
+      const reportForm = document.querySelector('[data-report-form]');
+      const reportSuccess = document.querySelector('[data-report-success]');
+      const reportClose = document.querySelector('[data-report-close]');
+
+      const sendGameEvent = (eventType) => {
+        if (!slug) {
+          return;
+        }
+
+        const payload = JSON.stringify({ gameSlug: slug, eventType });
+
+        try {
+          if (navigator.sendBeacon) {
+            const sent = navigator.sendBeacon(
+              '/api/game-event',
+              new Blob([payload], { type: 'application/json' }),
+            );
+
+            if (sent) {
+              return;
+            }
+          }
+        } catch {
+          // Ignore analytics failures.
+        }
+
+        fetch('/api/game-event', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {});
+      };
+
+      const readList = (key) => {
+        try {
+          const value = JSON.parse(localStorage.getItem(key) || '[]');
+          return Array.isArray(value) ? value : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const writeList = (key, value) => {
+        localStorage.setItem(key, JSON.stringify(value));
+      };
+
+      const setActive = (button, active) => {
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+
+        if (button.dataset.action === 'favorite') {
+          button.setAttribute('aria-label', active ? 'Remove from favorites' : 'Add to favorites');
+          const label = button.querySelector('.game-action-label');
+
+          if (label) {
+            label.textContent = active ? 'Favorited' : 'Favorite';
+          }
+        }
+      };
+
+      const toggleStoredSlug = (key, button) => {
+        const values = readList(key);
+        const exists = values.includes(slug);
+        const nextValues = exists ? values.filter((value) => value !== slug) : [...values, slug];
+
+        writeList(key, nextValues);
+        setActive(button, !exists);
+      };
+
+      const updateStoredState = () => {
+        const likeButton = actionBar.querySelector('[data-action="like"]');
+        const favoriteButton = actionBar.querySelector('[data-action="favorite"]');
+
+        if (likeButton) {
+          setActive(likeButton, readList('likedGames').includes(slug));
+        }
+
+        if (favoriteButton) {
+          setActive(favoriteButton, readList('favoriteGames').includes(slug));
+        }
+      };
+
+      const closeReportModal = () => {
+        if (!reportModal) {
+          return;
+        }
+
+        reportModal.hidden = true;
+        reportForm?.reset();
+
+        if (reportSuccess) {
+          reportSuccess.hidden = true;
+        }
+      };
+
+      const openReportModal = () => {
+        if (!reportModal) {
+          return;
+        }
+
+        reportModal.hidden = false;
+        reportModal.querySelector('select')?.focus();
+      };
+
+      const restartIframe = () => {
+        const iframe = player.querySelector('iframe');
+
+        if (!iframe || !iframe.src) {
+          return;
+        }
+
+        const currentSrc = iframe.src;
+        iframe.src = 'about:blank';
+        window.requestAnimationFrame(() => {
+          iframe.src = currentSrc;
+        });
+      };
+
+      const getFullscreenElement = () =>
+        document.fullscreenElement || document.webkitFullscreenElement || null;
+
+      const toggleFullscreen = () => {
+        if (getFullscreenElement()) {
+          const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+          exitFullscreen?.call(document);
+          return;
+        }
+
+        const requestFullscreen = player.requestFullscreen || player.webkitRequestFullscreen;
+        requestFullscreen?.call(player);
+      };
+
+      const loadGameIframe = () => {
+        const existingIframe = player.querySelector('iframe');
+        const iframeUrl = player.dataset.gameIframe || '';
+
+        if (existingIframe || !iframeUrl) {
+          return existingIframe;
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.className = 'game-iframe';
+        iframe.src = iframeUrl;
+        iframe.title = \`\${title} game\`;
+        iframe.loading = 'lazy';
+        iframe.allow = 'fullscreen; autoplay; gamepad; clipboard-read; clipboard-write';
+        iframe.allowFullscreen = true;
+
+        player.querySelector('.game-player-inner')?.setAttribute('hidden', '');
+        player.querySelector('.game-player-backdrop')?.setAttribute('hidden', '');
+        player.classList.add('game-player--iframe');
+        player.append(iframe);
+
+        return iframe;
+      };
+
+      actionBar.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action]');
+
+        if (!button) {
+          return;
+        }
+
+        const action = button.dataset.action;
+
+        if (action === 'like') {
+          toggleStoredSlug('likedGames', button);
+          sendGameEvent('like');
+        }
+
+        if (action === 'favorite') {
+          toggleStoredSlug('favoriteGames', button);
+          sendGameEvent('favorite');
+        }
+
+        if (action === 'report') {
+          openReportModal();
+        }
+
+        if (action === 'restart') {
+          restartIframe();
+        }
+
+        if (action === 'fullscreen') {
+          toggleFullscreen();
+        }
+      });
+
+      reportClose?.addEventListener('click', closeReportModal);
+
+      reportModal?.addEventListener('click', (event) => {
+        if (event.target === reportModal) {
+          closeReportModal();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && reportModal && !reportModal.hidden) {
+          closeReportModal();
+        }
+      });
+
+      const saveReportFallback = (report) => {
+        const reports = readList('gameReports');
+        reports.push({
+          slug,
+          title,
+          reason: report.reason,
+          details: report.details,
+          createdAt: new Date().toISOString(),
+        });
+        writeList('gameReports', reports);
+      };
+
+      reportForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(reportForm);
+        const report = {
+          gameSlug: slug,
+          reason: String(formData.get('reason') || ''),
+          details: String(formData.get('details') || ''),
+        };
+
+        try {
+          const response = await fetch('/api/report-game', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(report),
+          });
+
+          if (!response.ok) {
+            throw new Error('Unable to save report.');
+          }
+        } catch {
+          saveReportFallback(report);
+        }
+
+        sendGameEvent('report');
+
+        if (reportSuccess) {
+          reportSuccess.hidden = false;
+        }
+
+        window.setTimeout(closeReportModal, 900);
+      });
+
+      const updateFullscreenClass = () => {
+        const isFullscreen = getFullscreenElement() === player;
+        player.classList.toggle('is-fullscreen', isFullscreen);
+      };
+
+      document.addEventListener('fullscreenchange', updateFullscreenClass);
+      document.addEventListener('webkitfullscreenchange', updateFullscreenClass);
+
+      const playButton = player.querySelector('.play-now-button');
+      let playTracked = false;
+
+      const trackPlay = () => {
+        if (playTracked) {
+          return;
+        }
+
+        playTracked = true;
+        sendGameEvent('play');
+      };
+
+      playButton?.addEventListener('click', () => {
+        loadGameIframe();
+        trackPlay();
+      });
+
+      updateStoredState();
+      updateFullscreenClass();
+      sendGameEvent('view');
+    };
+
+    const initCommentForm = () => {
+      const form = document.querySelector('[data-comment-form]');
+
+      if (!form) {
+        return;
+      }
+
+      const success = document.querySelector('[data-comment-success]');
+      const error = document.querySelector('[data-comment-error]');
+      const nameInput = form.querySelector('input[name="name"]');
+      const emailInput = form.querySelector('input[name="email"]');
+      const termsInput = form.querySelector('input[name="terms"]');
+      const submitButton = form.querySelector('[data-comment-submit]');
+      const savedInfo = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('commentAuthor') || '{}');
+        } catch {
+          return {};
+        }
+      })();
+
+      if (savedInfo.name && nameInput) {
+        nameInput.value = savedInfo.name;
+      }
+
+      if (savedInfo.email && emailInput) {
+        emailInput.value = savedInfo.email;
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        const payload = {
+          gameSlug: form.dataset.gameSlug || '',
+          name: String(formData.get('name') || '').trim(),
+          email: String(formData.get('email') || '').trim(),
+          comment: String(formData.get('content') || '').trim(),
+          website: String(formData.get('website') || '').trim(),
+        };
+
+        if (!payload.name || !payload.comment || !termsInput?.checked) {
+          if (success) {
+            success.hidden = true;
+          }
+
+          if (error) {
+            error.textContent = 'Please enter your name, comment, and confirm the checkbox.';
+            error.hidden = false;
+          }
+          return;
+        }
+
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Submitting...';
+        }
+
+        try {
+          const response = await fetch('/api/comment-game', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok || !result.ok) {
+            throw new Error(result.message || 'Unable to save comment.');
+          }
+
+          localStorage.setItem(
+            'commentAuthor',
+            JSON.stringify({ name: payload.name, email: payload.email }),
+          );
+
+          form.reset();
+
+          if (success) {
+            success.textContent = result.message || 'Thanks! Your comment is waiting for approval.';
+            success.hidden = false;
+          }
+
+          if (error) {
+            error.hidden = true;
+          }
+        } catch (submitError) {
+          if (success) {
+            success.hidden = true;
+          }
+
+          if (error) {
+            error.textContent = submitError instanceof Error
+              ? submitError.message
+              : 'Unable to save your comment right now.';
+            error.hidden = false;
+          }
+        } finally {
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Comment';
+          }
+        }
+      });
+    };
+
+    const initEmbedCopy = () => {
+      const input = document.querySelector('[data-embed-url]');
+      const button = document.querySelector('[data-copy-embed]');
+
+      if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const originalText = button.textContent || 'Copy';
+      let feedbackTimer = 0;
+
+      const setFeedback = (text) => {
+        button.textContent = text;
+        window.clearTimeout(feedbackTimer);
+        feedbackTimer = window.setTimeout(() => {
+          button.textContent = originalText;
+        }, 1400);
+      };
+
+      const fallbackCopy = () => {
+        input.focus();
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+        return document.execCommand('copy');
+      };
+
+      button.addEventListener('click', async () => {
+        if (!input.value) {
+          return;
+        }
+
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(input.value);
+          } else if (!fallbackCopy()) {
+            throw new Error('Clipboard unavailable');
+          }
+
+          setFeedback('Copied');
+        } catch {
+          try {
+            setFeedback(fallbackCopy() ? 'Copied' : 'Select');
+          } catch {
+            setFeedback('Select');
+          }
+        }
+      });
+    };
+
+    const initPage = () => {
+      initGameActions();
+      initCommentForm();
+      initEmbedCopy();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPage);
+    } else {
+      initPage();
+    }
+  })();
+<\/script>`], ["", ` <script>
+  (() => {
+    const initGameActions = () => {
+      const player = document.querySelector('[data-game-player]');
+      const actionBar = document.querySelector('.game-action-buttons');
+
+      if (!player || !actionBar) {
+        return;
+      }
+
+      const slug = player.dataset.gameSlug || '';
+      const title = player.dataset.gameTitle || '';
+      const reportModal = document.querySelector('[data-report-modal]');
+      const reportForm = document.querySelector('[data-report-form]');
+      const reportSuccess = document.querySelector('[data-report-success]');
+      const reportClose = document.querySelector('[data-report-close]');
+
+      const sendGameEvent = (eventType) => {
+        if (!slug) {
+          return;
+        }
+
+        const payload = JSON.stringify({ gameSlug: slug, eventType });
+
+        try {
+          if (navigator.sendBeacon) {
+            const sent = navigator.sendBeacon(
+              '/api/game-event',
+              new Blob([payload], { type: 'application/json' }),
+            );
+
+            if (sent) {
+              return;
+            }
+          }
+        } catch {
+          // Ignore analytics failures.
+        }
+
+        fetch('/api/game-event', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {});
+      };
+
+      const readList = (key) => {
+        try {
+          const value = JSON.parse(localStorage.getItem(key) || '[]');
+          return Array.isArray(value) ? value : [];
+        } catch {
+          return [];
+        }
+      };
+
+      const writeList = (key, value) => {
+        localStorage.setItem(key, JSON.stringify(value));
+      };
+
+      const setActive = (button, active) => {
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+
+        if (button.dataset.action === 'favorite') {
+          button.setAttribute('aria-label', active ? 'Remove from favorites' : 'Add to favorites');
+          const label = button.querySelector('.game-action-label');
+
+          if (label) {
+            label.textContent = active ? 'Favorited' : 'Favorite';
+          }
+        }
+      };
+
+      const toggleStoredSlug = (key, button) => {
+        const values = readList(key);
+        const exists = values.includes(slug);
+        const nextValues = exists ? values.filter((value) => value !== slug) : [...values, slug];
+
+        writeList(key, nextValues);
+        setActive(button, !exists);
+      };
+
+      const updateStoredState = () => {
+        const likeButton = actionBar.querySelector('[data-action="like"]');
+        const favoriteButton = actionBar.querySelector('[data-action="favorite"]');
+
+        if (likeButton) {
+          setActive(likeButton, readList('likedGames').includes(slug));
+        }
+
+        if (favoriteButton) {
+          setActive(favoriteButton, readList('favoriteGames').includes(slug));
+        }
+      };
+
+      const closeReportModal = () => {
+        if (!reportModal) {
+          return;
+        }
+
+        reportModal.hidden = true;
+        reportForm?.reset();
+
+        if (reportSuccess) {
+          reportSuccess.hidden = true;
+        }
+      };
+
+      const openReportModal = () => {
+        if (!reportModal) {
+          return;
+        }
+
+        reportModal.hidden = false;
+        reportModal.querySelector('select')?.focus();
+      };
+
+      const restartIframe = () => {
+        const iframe = player.querySelector('iframe');
+
+        if (!iframe || !iframe.src) {
+          return;
+        }
+
+        const currentSrc = iframe.src;
+        iframe.src = 'about:blank';
+        window.requestAnimationFrame(() => {
+          iframe.src = currentSrc;
+        });
+      };
+
+      const getFullscreenElement = () =>
+        document.fullscreenElement || document.webkitFullscreenElement || null;
+
+      const toggleFullscreen = () => {
+        if (getFullscreenElement()) {
+          const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+          exitFullscreen?.call(document);
+          return;
+        }
+
+        const requestFullscreen = player.requestFullscreen || player.webkitRequestFullscreen;
+        requestFullscreen?.call(player);
+      };
+
+      const loadGameIframe = () => {
+        const existingIframe = player.querySelector('iframe');
+        const iframeUrl = player.dataset.gameIframe || '';
+
+        if (existingIframe || !iframeUrl) {
+          return existingIframe;
+        }
+
+        const iframe = document.createElement('iframe');
+        iframe.className = 'game-iframe';
+        iframe.src = iframeUrl;
+        iframe.title = \\\`\\\${title} game\\\`;
+        iframe.loading = 'lazy';
+        iframe.allow = 'fullscreen; autoplay; gamepad; clipboard-read; clipboard-write';
+        iframe.allowFullscreen = true;
+
+        player.querySelector('.game-player-inner')?.setAttribute('hidden', '');
+        player.querySelector('.game-player-backdrop')?.setAttribute('hidden', '');
+        player.classList.add('game-player--iframe');
+        player.append(iframe);
+
+        return iframe;
+      };
+
+      actionBar.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action]');
+
+        if (!button) {
+          return;
+        }
+
+        const action = button.dataset.action;
+
+        if (action === 'like') {
+          toggleStoredSlug('likedGames', button);
+          sendGameEvent('like');
+        }
+
+        if (action === 'favorite') {
+          toggleStoredSlug('favoriteGames', button);
+          sendGameEvent('favorite');
+        }
+
+        if (action === 'report') {
+          openReportModal();
+        }
+
+        if (action === 'restart') {
+          restartIframe();
+        }
+
+        if (action === 'fullscreen') {
+          toggleFullscreen();
+        }
+      });
+
+      reportClose?.addEventListener('click', closeReportModal);
+
+      reportModal?.addEventListener('click', (event) => {
+        if (event.target === reportModal) {
+          closeReportModal();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && reportModal && !reportModal.hidden) {
+          closeReportModal();
+        }
+      });
+
+      const saveReportFallback = (report) => {
+        const reports = readList('gameReports');
+        reports.push({
+          slug,
+          title,
+          reason: report.reason,
+          details: report.details,
+          createdAt: new Date().toISOString(),
+        });
+        writeList('gameReports', reports);
+      };
+
+      reportForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(reportForm);
+        const report = {
+          gameSlug: slug,
+          reason: String(formData.get('reason') || ''),
+          details: String(formData.get('details') || ''),
+        };
+
+        try {
+          const response = await fetch('/api/report-game', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(report),
+          });
+
+          if (!response.ok) {
+            throw new Error('Unable to save report.');
+          }
+        } catch {
+          saveReportFallback(report);
+        }
+
+        sendGameEvent('report');
+
+        if (reportSuccess) {
+          reportSuccess.hidden = false;
+        }
+
+        window.setTimeout(closeReportModal, 900);
+      });
+
+      const updateFullscreenClass = () => {
+        const isFullscreen = getFullscreenElement() === player;
+        player.classList.toggle('is-fullscreen', isFullscreen);
+      };
+
+      document.addEventListener('fullscreenchange', updateFullscreenClass);
+      document.addEventListener('webkitfullscreenchange', updateFullscreenClass);
+
+      const playButton = player.querySelector('.play-now-button');
+      let playTracked = false;
+
+      const trackPlay = () => {
+        if (playTracked) {
+          return;
+        }
+
+        playTracked = true;
+        sendGameEvent('play');
+      };
+
+      playButton?.addEventListener('click', () => {
+        loadGameIframe();
+        trackPlay();
+      });
+
+      updateStoredState();
+      updateFullscreenClass();
+      sendGameEvent('view');
+    };
+
+    const initCommentForm = () => {
+      const form = document.querySelector('[data-comment-form]');
+
+      if (!form) {
+        return;
+      }
+
+      const success = document.querySelector('[data-comment-success]');
+      const error = document.querySelector('[data-comment-error]');
+      const nameInput = form.querySelector('input[name="name"]');
+      const emailInput = form.querySelector('input[name="email"]');
+      const termsInput = form.querySelector('input[name="terms"]');
+      const submitButton = form.querySelector('[data-comment-submit]');
+      const savedInfo = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('commentAuthor') || '{}');
+        } catch {
+          return {};
+        }
+      })();
+
+      if (savedInfo.name && nameInput) {
+        nameInput.value = savedInfo.name;
+      }
+
+      if (savedInfo.email && emailInput) {
+        emailInput.value = savedInfo.email;
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const formData = new FormData(form);
+        const payload = {
+          gameSlug: form.dataset.gameSlug || '',
+          name: String(formData.get('name') || '').trim(),
+          email: String(formData.get('email') || '').trim(),
+          comment: String(formData.get('content') || '').trim(),
+          website: String(formData.get('website') || '').trim(),
+        };
+
+        if (!payload.name || !payload.comment || !termsInput?.checked) {
+          if (success) {
+            success.hidden = true;
+          }
+
+          if (error) {
+            error.textContent = 'Please enter your name, comment, and confirm the checkbox.';
+            error.hidden = false;
+          }
+          return;
+        }
+
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Submitting...';
+        }
+
+        try {
+          const response = await fetch('/api/comment-game', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          });
+          const result = await response.json().catch(() => ({}));
+
+          if (!response.ok || !result.ok) {
+            throw new Error(result.message || 'Unable to save comment.');
+          }
+
+          localStorage.setItem(
+            'commentAuthor',
+            JSON.stringify({ name: payload.name, email: payload.email }),
+          );
+
+          form.reset();
+
+          if (success) {
+            success.textContent = result.message || 'Thanks! Your comment is waiting for approval.';
+            success.hidden = false;
+          }
+
+          if (error) {
+            error.hidden = true;
+          }
+        } catch (submitError) {
+          if (success) {
+            success.hidden = true;
+          }
+
+          if (error) {
+            error.textContent = submitError instanceof Error
+              ? submitError.message
+              : 'Unable to save your comment right now.';
+            error.hidden = false;
+          }
+        } finally {
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Comment';
+          }
+        }
+      });
+    };
+
+    const initEmbedCopy = () => {
+      const input = document.querySelector('[data-embed-url]');
+      const button = document.querySelector('[data-copy-embed]');
+
+      if (!(input instanceof HTMLInputElement) || !(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const originalText = button.textContent || 'Copy';
+      let feedbackTimer = 0;
+
+      const setFeedback = (text) => {
+        button.textContent = text;
+        window.clearTimeout(feedbackTimer);
+        feedbackTimer = window.setTimeout(() => {
+          button.textContent = originalText;
+        }, 1400);
+      };
+
+      const fallbackCopy = () => {
+        input.focus();
+        input.select();
+        input.setSelectionRange(0, input.value.length);
+        return document.execCommand('copy');
+      };
+
+      button.addEventListener('click', async () => {
+        if (!input.value) {
+          return;
+        }
+
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(input.value);
+          } else if (!fallbackCopy()) {
+            throw new Error('Clipboard unavailable');
+          }
+
+          setFeedback('Copied');
+        } catch {
+          try {
+            setFeedback(fallbackCopy() ? 'Copied' : 'Select');
+          } catch {
+            setFeedback('Select');
+          }
+        }
+      });
+    };
+
+    const initPage = () => {
+      initGameActions();
+      initCommentForm();
+      initEmbedCopy();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPage);
+    } else {
+      initPage();
+    }
+  })();
+<\/script>`])), renderComponent($$result, "MainLayout", $$MainLayout, { "title": seoTitle, "description": seoDescription, "activeCategory": activeCategory, "canonicalPath": `/game/${game.slug}`, "image": game.thumbnail ?? "/images/og-placeholder.svg", "ogTitle": seoTitle, "ogDescription": seoDescription, "ogType": "article" }, { "default": async ($$result2) => renderTemplate` ${renderComponent($$result2, "JsonLd", $$JsonLd, { "schema": gamePageSchemas })} ${maybeRenderHead()}<div class="game-page poki-game-page"${addAttribute(`--game-image: url('${thumbnail}')`, "style")}> <h1 id="game-title" class="game-page-h1 sr-only">${game.title}</h1> <aside class="game-sidebar game-sidebar--left" aria-labelledby="hot-sidebar-heading"> <div id="hot-sidebar-heading" class="sidebar-title">Hot games</div> <div class="sidebar-card-grid"> ${hotGames.map((item) => renderTemplate`${renderComponent($$result2, "GameCard", $$GameCard, { "game": item, "size": "small" })}`)} </div> </aside> <main class="game-main" aria-labelledby="game-title"> <section class="game-player-card"${addAttribute(`${game.title} player`, "aria-label")}> <div class="game-player"${addAttribute(`--game-image: url('${thumbnail}')`, "style")} data-game-player${addAttribute(game.slug, "data-game-slug")}${addAttribute(game.title, "data-game-title")}${addAttribute(iframeUrl, "data-game-iframe")}> <div class="game-player-backdrop" aria-hidden="true"></div> <div class="game-player-inner"> <div class="game-player-icon"> <div class="game-card-placeholder" aria-hidden="true"> <span>${game.title}</span> </div> ${game.thumbnail && renderTemplate`<img${addAttribute(game.thumbnail, "src")}${addAttribute(`${game.title} game thumbnail`, "alt")} loading="lazy" decoding="async" onerror="this.hidden = true">`} </div> <button class="play-now-button" type="button"${addAttribute(!iframeUrl, "disabled")}>Play Now</button> </div> </div> <div class="game-info-bar"> <div> <div class="game-info-title" aria-hidden="true">${game.title}</div> <div class="game-rating"${addAttribute(`${game.rating} star rating`, "aria-label")}> <span aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</span> <strong>${game.rating}</strong> </div> </div> <div class="game-action-buttons" aria-label="Game actions"> <button class="game-action-btn" data-action="favorite" type="button" aria-label="Add to favorites" aria-pressed="false"> <span class="game-action-icon" aria-hidden="true">&#9825;</span> <span class="game-action-label">Favorite</span> </button> <button class="game-action-btn" data-action="report" type="button" aria-label="Report game"> <span class="game-action-icon" aria-hidden="true">&#9873;</span> <span class="game-action-label">Report</span> </button> <button class="game-action-btn" data-action="restart" type="button" aria-label="Reload game"> <span class="game-action-icon" aria-hidden="true">&#8635;</span> <span class="game-action-label">Reload</span> </button> <button class="game-action-btn" data-action="fullscreen" type="button" aria-label="Fullscreen"> <span class="game-action-icon" aria-hidden="true">[ ]</span> <span class="game-action-label">Fullscreen</span> </button> </div> </div> </section> <div class="report-modal" data-report-modal hidden> <div class="report-modal-box" role="dialog" aria-modal="true" aria-labelledby="report-modal-title"> <h2 id="report-modal-title">Report game</h2> <p>Tell us what is wrong with this game.</p> <form data-report-form> <label> <span>Reason</span> <select name="reason" required> <option value="Game not loading">Game not loading</option> <option value="Wrong game">Wrong game</option> <option value="Inappropriate content">Inappropriate content</option> <option value="Other">Other</option> </select> </label> <label> <span>Details</span> <textarea name="details" rows="4"></textarea> </label> <p class="report-success" data-report-success hidden>Thanks, your report has been saved.</p> <div class="report-modal-actions"> <button type="submit">Submit</button> <button type="button" data-report-close>Cancel</button> </div> </form> </div> </div> <section class="embed-row" aria-label="Embed game"> <label for="embed-url">Embed</label> <input id="embed-url" type="text"${addAttribute(embedUrl, "value")} readonly data-embed-url> <button type="button" data-copy-embed aria-label="Copy embed URL">Copy</button> </section> ${wallGames.length > 0 && renderTemplate`<section class="poki-game-wall-section" aria-labelledby="related-games-heading"> <div class="game-page-section-heading"> <h2 id="related-games-heading">More games</h2> </div> <div class="poki-game-wall"> ${wallGames.map((item, index) => renderTemplate`<a${addAttribute(["poki-wall-tile", `poki-wall-tile--${getWallTileSize(index)}`], "class:list")}${addAttribute(`/game/${item.slug}/`, "href")}${addAttribute(`Play ${item.title}`, "aria-label")}> ${item.thumbnail ? renderTemplate`<img${addAttribute(item.thumbnail, "src")}${addAttribute(`${item.title} game thumbnail`, "alt")} loading="lazy" decoding="async" onerror="this.hidden = true">` : renderTemplate`<span class="poki-wall-fallback">${item.title}</span>`} </a>`)} </div> </section>`} ${gamePageCategories.length > 0 && renderTemplate`<section class="poki-game-categories-section" aria-labelledby="game-categories-heading"> <div class="game-page-section-heading"> <h2 id="game-categories-heading">Game categories</h2> </div> <div class="poki-game-category-grid"> ${gamePageCategories.map((item) => renderTemplate`<a class="poki-game-category-card"${addAttribute(`/category/${item.slug}/`, "href")}> <i aria-hidden="true">${item.icon}</i> <span>${item.name}</span> </a>`)} </div> </section>`} <nav class="breadcrumb" aria-label="Breadcrumb"> <a${addAttribute(`/category/${categoryUrlSlug}/`, "href")}> ${breadcrumbCategory} </a> <span aria-hidden="true">&gt;</span> <span>${game.title}</span> </nav> <article class="game-article"> ${articleHtml ? renderTemplate`<div class="game-article-content">${unescapeHTML(articleHtml)}</div>` : renderTemplate`<div class="game-article-content"> <h2>About ${game.title}</h2> <p>${fallbackGameDescription}</p> <h2>Play ${game.title} Online: free browser fun with instant access</h2> <p> ${game.title} is built for quick play on desktop and mobile browsers. Open the page, press
+                Play Now, and jump straight into a compact session without downloads, accounts, or extra
+                setup.
+</p> <h3>Gameplay and objective</h3> <p>${gameInstructions}</p> <h3>Key Game Features</h3> <ul> ${articleFeatures.map((feature) => renderTemplate`<li>${feature}</li>`)} </ul> </div>`} <div class="article-tags" aria-label="Game tags"> ${articleTags.map((tag) => renderTemplate`<span class="article-tag">${tag}</span>`)} </div> </article> <section class="comment-panel" id="comments" aria-labelledby="comments-heading"> <h2 id="comments-heading">Comments</h2> ${approvedComments.length > 0 ? renderTemplate`<div class="comment-list" aria-label="Approved comments"> ${approvedComments.map((item) => renderTemplate`<article class="comment-item"> <div class="comment-meta"> <strong>${item.name}</strong> ${item.createdAt && renderTemplate`<time${addAttribute(item.createdAt, "datetime")}>${formatCommentDate(item.createdAt)}</time>`} </div> <p>${item.comment}</p> </article>`)} </div>` : renderTemplate`<p class="comment-empty">No comments yet. Be the first to comment.</p>`} <div class="comment-form-title">Leave a comment</div> <form class="comment-form" action="/api/comment-game" method="post" data-comment-form${addAttribute(game.slug, "data-game-slug")}> <div class="comment-form-row"> <label> <span>Name</span> <input type="text" name="name" autocomplete="name" required> </label> <label> <span>Email</span> <input type="email" name="email" autocomplete="email"> </label> </div> <label> <span>Content</span> <textarea name="content" rows="6" required></textarea> </label> <input type="text" name="website" autocomplete="off" tabindex="-1" hidden> <label class="comment-checkbox"> <input type="checkbox" name="terms" required> <span>I agree to submit this comment for moderation.</span> </label> <p class="comment-form-success" data-comment-success hidden>Thanks! Your comment is waiting for approval.</p> <p class="comment-form-error" data-comment-error hidden>Please enter your name, comment, and confirm the checkbox.</p> <button type="submit" data-comment-submit>Comment</button> </form> </section> </main> <aside class="game-sidebar game-sidebar--right" aria-labelledby="new-sidebar-heading"> <div id="new-sidebar-heading" class="sidebar-title">New games</div> <div class="sidebar-card-grid"> ${newGames.map((item) => renderTemplate`${renderComponent($$result2, "GameCard", $$GameCard, { "game": item, "size": "small" })}`)} </div> </aside> </div> ` }));
+}, "C:/Users/ULTRAPC/OneDrive/Desktop/codex-project/azgames-theme/poki-theme/src/pages/game/[slug].astro", void 0);
+
+const $$file = "C:/Users/ULTRAPC/OneDrive/Desktop/codex-project/azgames-theme/poki-theme/src/pages/game/[slug].astro";
+const $$url = "/game/[slug]";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$slug,
+  file: $$file,
+  prerender,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };
