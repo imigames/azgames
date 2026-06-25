@@ -1,0 +1,21 @@
+---
+import GameListingPage from '../components/GameListingPage.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { getGamesByFlag } from '../lib/games';
+
+const limit = 60;
+const requestedPage = Number(Astro.url.searchParams.get('page') ?? '1');
+const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+const gamesPage = await getGamesByFlag('isPopular', { page, limit: limit + 1 });
+const hasNext = gamesPage.length > limit;
+const games = gamesPage.slice(0, limit);
+const basePath = '/popular-games/';
+---
+
+<MainLayout
+  title="Popular Games | Free Online Browser Games | Free Game Zone"
+  description="Play popular free browser games ranked for repeat browser play."
+  canonicalPath={page > 1 ? `${basePath.replace(/\/$/, '')}?page=${page}` : basePath.replace(/\/$/, '')}
+>
+  <GameListingPage title="Popular Games" games={games} page={page} hasNext={hasNext} basePath={basePath} />
+</MainLayout>

@@ -1,0 +1,23 @@
+---
+import CategoryPageContent from '../components/CategoryPageContent.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { getCategoryBySlug } from '../lib/categories';
+import { getGamesByCategory } from '../lib/games';
+
+const category = await getCategoryBySlug('io-games');
+
+if (!category) {
+  return Astro.redirect('/');
+}
+
+const categoryGames = await getGamesByCategory('io-games', { page: 1, limit: 60 });
+---
+
+<MainLayout
+  title="Io Games | Free Online Browser Games | Free Game Zone"
+  description={`Play ${categoryGames.length} free Io games online with fast arena, multiplayer, and arcade-style browser picks.`}
+  activeCategory={category.slug.replace(/-games$/, '')}
+  canonicalPath="/category/io-games"
+>
+  <CategoryPageContent category={category} games={categoryGames} />
+</MainLayout>

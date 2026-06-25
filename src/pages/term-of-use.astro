@@ -1,0 +1,38 @@
+---
+import LegalPage from '../components/LegalPage.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { sanitizeSiteContentHtml } from '../lib/html-sanitize';
+import { getPublicSettings } from '../lib/settings';
+
+const settings = await getPublicSettings();
+const customContent = settings.termsOfUseContent.trim()
+  ? sanitizeSiteContentHtml(settings.termsOfUseContent)
+  : '';
+---
+
+<MainLayout
+  title="Term of use | Free Game Zone"
+  description="Read the Free Game Zone terms of use for freegamezone.io access, third-party content, user conduct, and disclaimers."
+  canonicalPath="/term-of-use"
+>
+  <LegalPage title="Term of use">
+    {
+      customContent ? (
+        <div class="game-article-content" set:html={customContent} />
+      ) : (
+        <>
+          <section><h2>Term of use</h2><p>These terms describe the basic rules for using Free Game Zone and browsing game pages on freegamezone.io.</p></section>
+          <section><h2>Acceptance of terms</h2><p>By using freegamezone.io, you agree to use it in a reasonable way and follow these terms. If you do not agree, you should stop using the website.</p></section>
+          <section><h2>Use of the website</h2><p>You may use Free Game Zone for personal entertainment, game discovery, and general browsing. You should not attempt to damage the website, overload public features, bypass security, or interfere with other users.</p></section>
+          <section><h2>Games and third-party content</h2><p>Games may be provided by third-party developers, publishers, or external providers through embedded content or links. We do not claim ownership of third-party games or related assets, and game availability may change.</p></section>
+          <section><h2>User conduct</h2><p>Please do not submit misleading reports, abusive messages, harmful code, or content that violates the rights of others. Simple feedback and accurate issue reports are welcome.</p></section>
+          <section><h2>Intellectual property</h2><p>The website layout, text, and organization belong to Free Game Zone unless otherwise noted. Game names, artwork, embedded content, trademarks, and other third-party materials belong to their respective owners.</p></section>
+          <section><h2>Disclaimer</h2><p>Free Game Zone is provided as available. We try to keep pages useful and functional, but we cannot guarantee that every third-party game will always load, remain available, or work on every device.</p></section>
+          <section><h2>Limitation of liability</h2><p>To the extent allowed by law, Free Game Zone is not responsible for problems caused by third-party game content, external providers, browser settings, or interruptions outside our control.</p></section>
+          <section><h2>Changes to terms</h2><p>We may update these terms as the website changes. The latest version will be posted on this page.</p></section>
+          <section><h2>Contact</h2><p>Questions about these terms, copyright issues, third-party content, or game removal requests can be sent through the <a href="/contact-us">Contact us</a> page.</p></section>
+        </>
+      )
+    }
+  </LegalPage>
+</MainLayout>

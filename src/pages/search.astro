@@ -1,0 +1,51 @@
+---
+import GameListingPage from '../components/GameListingPage.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { searchGames } from '../lib/games';
+
+const query = Astro.url.searchParams.get('q')?.trim() ?? '';
+const requestedPage = Number(Astro.url.searchParams.get('page') ?? '1');
+const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+const limit = 40;
+const gamesPage = query ? await searchGames(query, { page, limit: limit + 1 }) : [];
+const hasNext = gamesPage.length > limit;
+const games = gamesPage.slice(0, limit);
+const basePath = query ? `/search?q=${encodeURIComponent(query)}` : '/search';
+const pageTitle = query ? `Search results for "${query}"` : 'Search games';
+const description = query
+  ? `Search free browser games matching ${query}.`
+  : 'Search free browser games on Free Game Zone.';
+---
+
+<MainLayout
+  title={`${pageTitle} | Free Game Zone`}
+  description={description}
+  canonicalPath={page > 1 && query ? `${basePath}&page=${page}` : basePath}
+>
+  {
+    query ? (
+      games.length > 0 ? (
+        <GameListingPage
+          title={pageTitle}
+          games={games}
+          page={page}
+          hasNext={hasNext}
+          basePath={basePath}
+        />
+      ) : (
+        <div class="category-page">
+          <header class="category-page-header">
+            <h1>{pageTitle}</h1>
+          </header>
+          <div class="favorites-page-empty">No games found</div>
+        </div>
+      )
+    ) : (
+      <div class="category-page">
+        <header class="category-page-header">
+          <h1>Search games</h1>
+        </header>
+      </div>
+    )
+  }
+</MainLayout>
