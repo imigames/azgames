@@ -1,0 +1,22 @@
+{
+  "name": "freegamezone-theme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "schema:validate": "node scripts/validate-jsonld.mjs"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/cloudflare": "^12.6.13",
+    "@supabase/supabase-js": "^2.105.1",
+    "astro": "^5.0.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.85.0"
+  }
+}
