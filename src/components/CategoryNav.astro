@@ -1,0 +1,127 @@
+---
+import { getCategories } from '../lib/categories';
+
+interface Props {
+  activeSlug?: string;
+}
+
+const { activeSlug } = Astro.props;
+const categories = await getCategories();
+const normalizeCategorySlug = (slug: string) => slug.replace(/-games$/, '');
+const getCategoryUrl = (slug: string) => `/category/${slug.endsWith('-games') ? slug : `${slug}-games`}/`;
+const currentPath = Astro.url.pathname.replace(/\/$/, '');
+const pathActiveSlug =
+  currentPath === '/io-games'
+    ? 'io'
+    : categories.find(
+        (category) =>
+          currentPath === `/category/${category.slug}` ||
+          currentPath === getCategoryUrl(category.slug).replace(/\/$/, ''),
+      )?.slug;
+const resolvedActiveSlug = activeSlug ?? pathActiveSlug;
+const normalizedActiveSlug = resolvedActiveSlug ? normalizeCategorySlug(resolvedActiveSlug) : undefined;
+const categoryIconMap: Record<string, string> = {
+  clicker: '✦',
+  io: '.IO',
+  adventure: '◒',
+  '2-player': '▮▮',
+  shooting: '◎',
+  sports: '⚽',
+  car: '▰',
+  puzzle: '✚',
+  casual: '🎮',
+  kids: '❧',
+  action: '✹',
+  fighting: '⚔',
+};
+
+const getCategoryIcon = (slug: string, fallback: string | null) =>
+  categoryIconMap[normalizeCategorySlug(slug)] ?? fallback ?? '';
+---
+
+<nav class="category-strip" aria-label="Game categories">
+  <div class="category-nav-wrap">
+    <button
+      class="category-nav-arrow prev"
+      type="button"
+      data-category-nav-prev
+      aria-label="Scroll categories left"
+      hidden
+    >
+      ‹
+    </button>
+    <div class="category-scroll" data-category-nav-scroll>
+      {
+        categories.map((category) => (
+          <a
+            class:list={[
+              'category-nav-item',
+              { active: normalizedActiveSlug === normalizeCategorySlug(category.slug) },
+            ]}
+            href={getCategoryUrl(category.slug)}
+            aria-current={
+              normalizedActiveSlug === normalizeCategorySlug(category.slug) ? 'page' : undefined
+            }
+          >
+            <span
+              class:list={[
+                'category-nav-icon',
+                `category-nav-icon--${normalizeCategorySlug(category.slug)}`,
+              ]}
+              aria-hidden="true"
+            >
+              {getCategoryIcon(category.slug, category.icon)}
+            </span>
+            <span>{category.name}</span>
+          </a>
+        ))
+      }
+    </div>
+    <button
+      class="category-nav-arrow next"
+      type="button"
+      data-category-nav-next
+      aria-label="Scroll categories right"
+      hidden
+    >
+      ›
+    </button>
+  </div>
+</nav>
+
+<script is:inline>
+  (() => {
+    const wraps = document.querySelectorAll('.category-nav-wrap');
+
+    wraps.forEach((wrap) => {
+      const scroller = wrap.querySelector('[data-category-nav-scroll]');
+      const prev = wrap.querySelector('[data-category-nav-prev]');
+      const next = wrap.querySelector('[data-category-nav-next]');
+
+      if (!(scroller instanceof HTMLElement)
+        || !(prev instanceof HTMLButtonElement)
+        || !(next instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const update = () => {
+        const maxScroll = scroller.scrollWidth - scroller.clientWidth;
+        const canScroll = maxScroll > 4;
+        prev.hidden = !canScroll || scroller.scrollLeft <= 4;
+        next.hidden = !canScroll || scroller.scrollLeft >= maxScroll - 4;
+      };
+
+      prev.addEventListener('click', () => {
+        scroller.scrollBy({ left: -220, behavior: 'smooth' });
+      });
+
+      next.addEventListener('click', () => {
+        scroller.scrollBy({ left: 220, behavior: 'smooth' });
+      });
+
+      scroller.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update);
+      requestAnimationFrame(update);
+    });
+  })();
+</script>

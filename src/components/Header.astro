@@ -1,0 +1,643 @@
+---
+import { getCategories } from '../lib/categories';
+import { getTopGames } from '../lib/games';
+import { getPublicSettings } from '../lib/settings';
+import type { PublicSettings } from '../lib/settings';
+
+interface Props {
+  settings?: PublicSettings;
+}
+
+const categories = await getCategories();
+const popularMenuGames = await getTopGames(8);
+const settings = Astro.props.settings ?? await getPublicSettings();
+const logoUrl = settings.siteLogoUrl.trim();
+const logoAlt = settings.siteLogoAlt.trim() || settings.siteName;
+const shortLogoText = settings.siteShortLogoText.trim();
+
+const fallbackMenuCategories = [
+  { name: 'Clicker Games', slug: 'clicker-games' },
+  { name: 'Io Games', slug: 'io-games' },
+  { name: 'Adventure Games', slug: 'adventure-games' },
+  { name: '2 Player Games', slug: '2-player-games' },
+  { name: 'Shooting Games', slug: 'shooting-games' },
+  { name: 'Sports Games', slug: 'sports-games' },
+  { name: 'Car Games', slug: 'car-games' },
+  { name: 'Puzzle Games', slug: 'puzzle-games' },
+  { name: 'Casual Games', slug: 'casual-games' },
+  { name: 'Kids Games', slug: 'kids-games' },
+];
+
+const sourceMenuCategories = categories.length > 0 ? categories : fallbackMenuCategories;
+
+const menuCategories = sourceMenuCategories.map((category) => ({
+  name: category.name,
+  slug: category.slug,
+}));
+
+const getCategoryUrl = (slug: string) => `/category/${slug.endsWith('-games') ? slug : `${slug}-games`}/`;
+const normalizeCategorySlug = (slug: string) => slug.replace(/-games$/, '');
+const categoryIconMap: Record<string, string> = {
+  clicker: '✦',
+  io: '.IO',
+  adventure: '◒',
+  '2-player': '▮▮',
+  shooting: '◎',
+  sports: '⚽',
+  car: '▰',
+  puzzle: '✚',
+  casual: '🎮',
+  kids: '❧',
+  action: '✹',
+  fighting: '⚔',
+};
+const getCategoryIcon = (slug: string) => categoryIconMap[normalizeCategorySlug(slug)] ?? '•';
+---
+
+<header class="site-header">
+  <div class="header-inner">
+    <a class="site-logo" href="/" aria-label={`${logoAlt} home`}>
+      {
+        logoUrl ? (
+          <img
+            class="site-logo-image"
+            src={logoUrl}
+            alt={logoAlt}
+          />
+        ) : (
+          <>
+            <span class="site-logo-full" aria-hidden="true">
+              {
+                settings.siteName.split(/\s+/).filter(Boolean).map((word, index) => (
+                  <span class={index === 1 ? 'site-logo-accent' : 'site-logo-main'}>{word}</span>
+                ))
+              }
+            </span>
+            <span class="site-logo-short" aria-hidden="true">
+              <span>
+                {
+                  shortLogoText
+                    || settings.siteName
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .map((word) => word[0])
+                      .join('')
+                      .slice(0, 4)
+                }
+              </span>
+            </span>
+          </>
+        )
+      }
+    </a>
+
+    <div class="poki-logo-tools" aria-label="Quick actions">
+      <button
+        class="poki-logo-tool"
+        type="button"
+        data-poki-open-favorites
+        aria-label="Open favorites"
+        aria-expanded="false"
+        aria-controls="favorites-panel"
+      >
+        <span aria-hidden="true">&#9825;</span>
+        <span class="favorite-count-badge" data-favorites-count hidden>0</span>
+      </button>
+      <button
+        class="poki-logo-tool"
+        type="button"
+        data-poki-open-search
+        aria-label="Open search"
+      >
+        <span aria-hidden="true">&#8981;</span>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      <form class="header-search" action="/search" role="search" autocomplete="off" data-game-search>
+        <label class="sr-only" for="site-search">Search games</label>
+        <input
+          id="site-search"
+          type="search"
+          name="q"
+          placeholder="Search Game..."
+          aria-controls="search-results"
+          aria-expanded="false"
+        />
+        <div class="search-dropdown" id="search-results" role="listbox" hidden></div>
+      </form>
+
+      <button
+        class="icon-button"
+        type="button"
+        data-nav-action="favorites"
+        aria-label="Open favorites"
+        aria-expanded="false"
+        aria-controls="favorites-panel"
+      >
+        <span aria-hidden="true">&#9825;</span>
+        <span class="favorite-count-badge" data-favorites-count hidden>0</span>
+      </button>
+
+      <button
+        class="icon-button menu-button"
+        type="button"
+        data-nav-action="menu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menu-drawer"
+      >
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="favorites-overlay" data-favorites-overlay aria-hidden="true" hidden></div>
+    <div
+      class="favorites-panel"
+      id="favorites-panel"
+      data-favorites-panel
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="favorites-panel-title"
+      hidden
+    >
+      <button class="favorites-panel-close" type="button" data-favorites-close aria-label="Close favorites">×</button>
+      <div class="panel-title" id="favorites-panel-title">Favorite games</div>
+      <p class="favorites-panel-intro">Games saved in this browser appear here.</p>
+      <div class="favorites-panel-list" data-favorites-list></div>
+      <a href="/favorites/" class="panel-link">View all favorites</a>
+    </div>
+
+    <div class="menu-overlay" data-menu-overlay aria-hidden="true" hidden></div>
+    <nav class="menu-drawer" id="menu-drawer" data-menu-drawer aria-label="Site menu" aria-hidden="true" hidden>
+      <button class="menu-drawer-close" type="button" data-menu-close aria-label="Close menu">×</button>
+      <form class="menu-search-panel" action="/search" role="search">
+        <label class="sr-only" for="menu-search">Search games</label>
+        <input id="menu-search" type="search" name="q" placeholder="Search games" />
+        <button type="submit">Search</button>
+      </form>
+      <div class="menu-panel-label">Categories</div>
+      <div class="menu-category-chips" aria-label="Game categories">
+        {
+          menuCategories.slice(0, 12).map((category) => (
+            <a href={getCategoryUrl(category.slug)}>
+              {category.name.replace(/\s*Games$/i, '')}
+            </a>
+          ))
+        }
+      </div>
+      <div class="menu-panel-label">Popular this week</div>
+      <div class="menu-popular-grid">
+        {
+          popularMenuGames.map((game) => (
+            <a class="menu-popular-card" href={`/game/${game.slug}/`} aria-label={`Play ${game.title}`}>
+              <span>
+                {
+                  game.thumbnail && (
+                    <img
+                      src={game.thumbnail}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      onerror="this.hidden = true"
+                    />
+                  )
+                }
+              </span>
+              <strong>{game.title}</strong>
+            </a>
+          ))
+        }
+      </div>
+      <div class="menu-panel-label">All categories</div>
+      {
+        menuCategories.map((category) => (
+          <a class="menu-category-link" href={getCategoryUrl(category.slug)}>
+            <span
+              class:list={[
+                'menu-category-icon',
+                `menu-category-icon--${normalizeCategorySlug(category.slug)}`,
+              ]}
+              aria-hidden="true"
+            >
+              {getCategoryIcon(category.slug)}
+            </span>
+            <span class="menu-category-label">{category.name}</span>
+          </a>
+        ))
+      }
+    </nav>
+  </div>
+</header>
+
+<script is:inline>
+  (() => {
+    const form = document.querySelector('[data-game-search]');
+
+    if (!form) {
+      return;
+    }
+
+    const input = form.querySelector('input[type="search"]');
+    const dropdown = form.querySelector('.search-dropdown');
+    let debounceTimer;
+    let activeController;
+    let lastQuery = '';
+
+    if (!input || !dropdown) {
+      return;
+    }
+
+    const hideDropdown = () => {
+      dropdown.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+    };
+
+    const showDropdown = () => {
+      dropdown.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    };
+
+    const createThumb = (game) => {
+      const thumb = document.createElement('span');
+      thumb.className = 'search-result-thumb';
+
+      const fallback = document.createElement('span');
+      fallback.textContent = game.title.slice(0, 1).toUpperCase();
+      thumb.append(fallback);
+
+      if (game.thumbnail) {
+        const image = document.createElement('img');
+        image.src = game.thumbnail;
+        image.alt = '';
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        image.onerror = () => image.remove();
+        thumb.append(image);
+      }
+
+      return thumb;
+    };
+
+    const renderResults = async () => {
+      const query = input.value.trim();
+      dropdown.textContent = '';
+
+      if (!query) {
+        hideDropdown();
+        return;
+      }
+
+      lastQuery = query;
+      activeController?.abort();
+      activeController = new AbortController();
+
+      let results = [];
+
+      try {
+        const response = await fetch(`/api/search.json?q=${encodeURIComponent(query)}`, {
+          signal: activeController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('Search request failed');
+        }
+
+        results = await response.json();
+      } catch (error) {
+        if (error?.name === 'AbortError') {
+          return;
+        }
+
+        results = [];
+      }
+
+      if (query !== lastQuery) {
+        return;
+      }
+
+      dropdown.textContent = '';
+
+      if (results.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'search-empty';
+        empty.textContent = 'No games found';
+        dropdown.append(empty);
+        showDropdown();
+        return;
+      }
+
+      results.forEach((game) => {
+        const link = document.createElement('a');
+        link.className = 'search-result';
+        link.href = `/game/${game.slug}/`;
+        link.setAttribute('role', 'option');
+
+        const title = document.createElement('span');
+        title.className = 'search-result-title';
+        title.textContent = game.title;
+
+        link.append(createThumb(game), title);
+        dropdown.append(link);
+      });
+
+      showDropdown();
+    };
+
+    const queueResults = () => {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(renderResults, 180);
+    };
+
+    input.addEventListener('input', queueResults);
+    input.addEventListener('focus', queueResults);
+
+    form.addEventListener('submit', (event) => {
+      const query = input.value.trim();
+
+      if (!query) {
+        event.preventDefault();
+        hideDropdown();
+        return;
+      }
+
+      event.preventDefault();
+      window.location.href = `/search?q=${encodeURIComponent(query)}`;
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!(event.target instanceof Node) || !form.contains(event.target)) {
+        hideDropdown();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        hideDropdown();
+        input.blur();
+      }
+    });
+  })();
+</script>
+
+<script is:inline>
+  (() => {
+    const favoritesButton = document.querySelector('[data-nav-action="favorites"]');
+    const menuButton = document.querySelector('[data-nav-action="menu"]');
+    const pokiFavoritesButton = document.querySelector('[data-poki-open-favorites]');
+    const pokiSearchButton = document.querySelector('[data-poki-open-search]');
+    const favoritesPanel = document.querySelector('[data-favorites-panel]');
+    const favoritesList = document.querySelector('[data-favorites-list]');
+    const favoritesOverlay = document.querySelector('[data-favorites-overlay]');
+    const favoritesClose = document.querySelector('[data-favorites-close]');
+    const menuDrawer = document.querySelector('[data-menu-drawer]');
+    const menuOverlay = document.querySelector('[data-menu-overlay]');
+    const menuClose = document.querySelector('[data-menu-close]');
+
+    if (!favoritesButton || !menuButton || !favoritesPanel || !favoritesList || !favoritesOverlay || !menuDrawer || !menuOverlay) {
+      return;
+    }
+
+    const favoriteOpenButtons = [favoritesButton, pokiFavoritesButton].filter(Boolean);
+
+    const readFavoriteSlugs = () => {
+      try {
+        const value = JSON.parse(localStorage.getItem('favoriteGames') || '[]');
+        return Array.isArray(value) ? value.filter((slug) => typeof slug === 'string') : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const writeFavoriteSlugs = (slugs) => {
+      localStorage.setItem('favoriteGames', JSON.stringify(slugs));
+      window.dispatchEvent(new CustomEvent('favoriteGames:change'));
+    };
+
+    const updateFavoriteCount = () => {
+      const count = readFavoriteSlugs().length;
+
+      document.querySelectorAll('[data-favorites-count]').forEach((badge) => {
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.hidden = count === 0;
+      });
+    };
+
+    const setFavoritesOpen = (isOpen) => {
+      favoritesPanel.hidden = !isOpen;
+      favoritesOverlay.hidden = !isOpen;
+      favoritesPanel.classList.toggle('is-open', isOpen);
+      favoritesOverlay.classList.toggle('is-open', isOpen);
+      favoritesPanel.setAttribute('aria-hidden', String(!isOpen));
+      favoritesOverlay.setAttribute('aria-hidden', String(!isOpen));
+      document.body.classList.toggle('body-favorites-open', isOpen);
+
+      favoriteOpenButtons.forEach((button) => {
+        button.classList.toggle('is-open', isOpen);
+        button.setAttribute('aria-expanded', String(isOpen));
+      });
+    };
+
+    const setMenuOpen = (isOpen) => {
+      menuDrawer.hidden = !isOpen;
+      menuOverlay.hidden = !isOpen;
+      menuDrawer.classList.toggle('is-open', isOpen);
+      menuOverlay.classList.toggle('is-open', isOpen);
+      menuDrawer.setAttribute('aria-hidden', String(!isOpen));
+      menuOverlay.setAttribute('aria-hidden', String(!isOpen));
+      menuButton.classList.toggle('is-open', isOpen);
+      menuButton.setAttribute('aria-expanded', String(isOpen));
+      document.body.classList.toggle('body-menu-open', isOpen);
+    };
+
+    const closeFavorites = () => setFavoritesOpen(false);
+    const closeMenu = () => setMenuOpen(false);
+
+    const createFavoriteThumb = (game) => {
+      const thumb = document.createElement('span');
+      thumb.className = 'favorite-row-thumb';
+      thumb.textContent = game.title.slice(0, 1).toUpperCase();
+
+      if (game.thumbnail) {
+        const image = document.createElement('img');
+        image.src = game.thumbnail;
+        image.alt = '';
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        image.onerror = () => image.remove();
+        thumb.append(image);
+      }
+
+      return thumb;
+    };
+
+    const removeFavorite = (slug) => {
+      writeFavoriteSlugs(readFavoriteSlugs().filter((favoriteSlug) => favoriteSlug !== slug));
+      updateFavoriteCount();
+      void renderFavorites();
+    };
+
+    const createEmptyState = () => {
+      const empty = document.createElement('div');
+      empty.className = 'favorites-empty';
+
+      const title = document.createElement('strong');
+      title.textContent = 'No favorite games yet.';
+
+      const help = document.createElement('span');
+      help.textContent = 'Click the heart button on a game to add it here.';
+
+      empty.append(title, help);
+      return empty;
+    };
+
+    const createFavoriteCard = (game) => {
+      const card = document.createElement('div');
+      card.className = 'favorite-row';
+
+      const link = document.createElement('a');
+      link.className = 'favorite-row-link';
+      link.href = `/game/${game.slug}/`;
+
+      const title = document.createElement('span');
+      title.className = 'favorite-row-title';
+      title.textContent = game.title;
+
+      const remove = document.createElement('button');
+      remove.className = 'favorite-row-remove';
+      remove.type = 'button';
+      remove.setAttribute('aria-label', `Remove ${game.title} from favorites`);
+      remove.textContent = '×';
+      remove.addEventListener('click', () => removeFavorite(game.slug));
+
+      link.append(createFavoriteThumb(game), title);
+      card.append(link, remove);
+
+      return card;
+    };
+
+    const renderFavorites = async () => {
+      const favoriteSlugs = readFavoriteSlugs();
+      favoritesList.textContent = '';
+
+      if (favoriteSlugs.length === 0) {
+        favoritesList.append(createEmptyState());
+        return;
+      }
+
+      let favoriteGames = [];
+
+      try {
+        const response = await fetch(
+          `/api/search.json?slugs=${encodeURIComponent(favoriteSlugs.slice(0, 60).join(','))}&limit=60`,
+        );
+
+        if (response.ok) {
+          favoriteGames = await response.json();
+        }
+      } catch {
+        favoriteGames = [];
+      }
+
+      favoritesList.textContent = '';
+
+      if (favoriteGames.length === 0) {
+        favoritesList.append(createEmptyState());
+        return;
+      }
+
+      favoriteGames.forEach((game) => {
+        favoritesList.append(createFavoriteCard(game));
+      });
+    };
+
+    favoritesButton.addEventListener('click', () => {
+      const shouldOpen = favoritesPanel.hidden;
+      closeMenu();
+      renderFavorites();
+      setFavoritesOpen(shouldOpen);
+    });
+
+    menuButton.addEventListener('click', () => {
+      const shouldOpen = menuDrawer.hidden;
+      closeFavorites();
+      setMenuOpen(shouldOpen);
+    });
+
+    pokiFavoritesButton?.addEventListener('click', () => {
+      favoritesButton.click();
+    });
+
+    pokiSearchButton?.addEventListener('click', () => {
+      menuButton.click();
+      window.requestAnimationFrame(() => {
+        menuDrawer.querySelector('input[type="search"]')?.focus();
+      });
+    });
+
+    favoritesClose?.addEventListener('click', closeFavorites);
+    favoritesOverlay.addEventListener('click', closeFavorites);
+    menuClose?.addEventListener('click', closeMenu);
+    menuOverlay.addEventListener('click', closeMenu);
+
+    favoritesPanel.addEventListener('click', (event) => {
+      const target = event.target;
+
+      if (target instanceof Element && target.closest('a')) {
+        closeFavorites();
+      }
+
+      event.stopPropagation();
+    });
+
+    menuDrawer.addEventListener('click', (event) => {
+      const target = event.target;
+
+      if (target instanceof Element && target.closest('a')) {
+        closeMenu();
+      }
+      event.stopPropagation();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (target instanceof Element && target.closest('[data-action="favorite"]')) {
+        window.setTimeout(updateFavoriteCount, 0);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        closeFavorites();
+        closeMenu();
+      }
+    });
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'favoriteGames') {
+        updateFavoriteCount();
+
+        if (!favoritesPanel.hidden) {
+          renderFavorites();
+        }
+      }
+    });
+
+    window.addEventListener('favoriteGames:change', () => {
+      updateFavoriteCount();
+
+      if (!favoritesPanel.hidden) {
+        renderFavorites();
+      }
+    });
+
+    updateFavoriteCount();
+  })();
+</script>

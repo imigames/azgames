@@ -1,0 +1,240 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminListAiProviders,
+  adminUpdateAiProvider,
+  type AdminAiProvider,
+} from '../../lib/ai-providers';
+
+export const prerender = false;
+
+const providerMeta = [
+  {
+    providerKey: 'openai',
+    providerName: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4.1-mini',
+    note: 'API key from OpenAI platform',
+  },
+  {
+    providerKey: 'gemini',
+    providerName: 'Google Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com',
+    defaultModel: 'gemini-2.5-flash',
+    note: 'API key from Google AI Studio / Gemini API',
+  },
+  {
+    providerKey: 'anthropic',
+    providerName: 'Anthropic Claude',
+    baseUrl: 'https://api.anthropic.com',
+    defaultModel: 'claude-sonnet-4-5',
+    note: 'API key from Anthropic Console',
+  },
+  {
+    providerKey: 'openrouter',
+    providerName: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    defaultModel: 'openai/gpt-4.1-mini',
+    note: 'API key from OpenRouter',
+  },
+];
+
+const providerKeys = new Set(providerMeta.map((provider) => provider.providerKey));
+let selectedProviderKey = Astro.url.searchParams.get('provider')?.trim() || 'openai';
+let actionError = '';
+let actionSuccess = '';
+
+if (!providerKeys.has(selectedProviderKey)) {
+  selectedProviderKey = 'openai';
+}
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const intent = String(formData.get('intent') ?? 'save');
+  selectedProviderKey = String(formData.get('provider_key') ?? '').trim();
+
+  if (!providerKeys.has(selectedProviderKey)) {
+    actionError = 'Choose a valid AI provider.';
+    selectedProviderKey = 'openai';
+  } else {
+    const isEnabled = formData.get('is_enabled') === 'on';
+    const isDefault = formData.get('is_default') === 'on';
+
+    if (isDefault && !isEnabled) {
+      actionError = 'A default provider must also be enabled.';
+    } else {
+      const result = await adminUpdateAiProvider(selectedProviderKey, {
+        provider_name: String(formData.get('provider_name') ?? '').trim(),
+        api_key: intent === 'clear-key' ? '__CLEAR__' : String(formData.get('api_key') ?? ''),
+        base_url: String(formData.get('base_url') ?? '').trim(),
+        default_model: String(formData.get('default_model') ?? '').trim(),
+        is_enabled: isEnabled,
+        is_default: isDefault,
+      });
+
+      if (result.success) {
+        actionSuccess =
+          intent === 'clear-key' ? 'API key cleared successfully.' : 'AI provider saved successfully.';
+      } else {
+        actionError = result.error ?? 'Unable to save AI provider.';
+      }
+    }
+  }
+}
+
+const providersResult = await adminListAiProviders();
+const providersByKey = new Map(providersResult.providers.map((provider) => [provider.providerKey, provider]));
+
+const providers = providerMeta.map((meta) => {
+  const provider = providersByKey.get(meta.providerKey);
+
+  return {
+    id: provider?.id ?? meta.providerKey,
+    providerKey: meta.providerKey,
+    providerName: provider?.providerName ?? meta.providerName,
+    apiKeyConfigured: provider?.apiKeyConfigured ?? false,
+    apiKeyMasked: provider?.apiKeyMasked ?? null,
+    baseUrl: provider?.baseUrl ?? meta.baseUrl,
+    defaultModel: provider?.defaultModel ?? meta.defaultModel,
+    isEnabled: provider?.isEnabled ?? false,
+    isDefault: provider?.isDefault ?? false,
+    settings: provider?.settings ?? {},
+    createdAt: provider?.createdAt ?? null,
+    updatedAt: provider?.updatedAt ?? null,
+    note: meta.note,
+  };
+});
+
+const selectedProvider = providers.find((provider) => provider.providerKey === selectedProviderKey) ?? providers[0];
+const pageError = actionError || providersResult.error || '';
+---
+
+<AdminLayout
+  title="Ai Models | Free Game Zone"
+  description="Connect AI providers to generate SEO content for games and categories."
+>
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/ai-models/bulk">Bulk generation</a>
+    <a class="admin-link-btn" href="/admin/ai-models/logs">View generation logs</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-ai-models-title">
+    <h1 id="admin-ai-models-title" class="sr-only">Ai Models</h1>
+
+    {pageError && <p class="admin-error">{pageError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+
+    <section class="ai-provider-grid" aria-label="AI providers">
+      {
+        providers.map((provider) => (
+          <article class="admin-card ai-provider-card">
+            <div class="ai-provider-card-header">
+              <h2>{provider.providerName}</h2>
+              <div class="ai-provider-badges">
+                <span class:list={['admin-status-badge', provider.isEnabled ? 'is-ok' : 'is-muted']}>
+                  {provider.isEnabled ? 'Enabled' : 'Disabled'}
+                </span>
+                {provider.isDefault && <span class="admin-status-badge is-accent">Default</span>}
+              </div>
+            </div>
+
+            <dl class="ai-provider-details">
+              <div>
+                <dt>Default model</dt>
+                <dd>{provider.defaultModel || '-'}</dd>
+              </div>
+              <div>
+                <dt>API key</dt>
+                <dd>
+                  {provider.apiKeyConfigured ? `Connected ${provider.apiKeyMasked ?? ''}` : 'Not connected'}
+                </dd>
+              </div>
+              <div>
+                <dt>Base URL</dt>
+                <dd>{provider.baseUrl || '-'}</dd>
+              </div>
+            </dl>
+
+            <div class="admin-form-actions">
+              <a class="admin-primary-btn" href={`/admin/ai-models?provider=${provider.providerKey}`}>
+                Configure
+              </a>
+              <a class="admin-link-btn" href={`/admin/ai-models/test?provider=${provider.providerKey}`}>
+                Test
+              </a>
+            </div>
+          </article>
+        ))
+      }
+    </section>
+
+    <form class="admin-game-form admin-settings-form" method="post" action={`/admin/ai-models?provider=${selectedProvider.providerKey}`}>
+      <input type="hidden" name="provider_key" value={selectedProvider.providerKey} />
+
+      <section class="admin-settings-section" aria-labelledby="ai-provider-config-title">
+        <div class="admin-settings-section-heading">
+          <h2 id="ai-provider-config-title">Configure {selectedProvider.providerName}</h2>
+          <p>{selectedProvider.note}</p>
+        </div>
+
+        <p class="admin-warning">
+          API keys are stored for server-side use only. Do not share your keys.
+        </p>
+
+        <div class="admin-form-grid">
+          <label>
+            <span>Provider name</span>
+            <input type="text" name="provider_name" value={selectedProvider.providerName} required />
+          </label>
+
+          <label>
+            <span>API key</span>
+            <input
+              type="password"
+              name="api_key"
+              autocomplete="new-password"
+              placeholder="Leave empty to keep current key"
+            />
+            <small class="admin-field-note">
+              Current status: {selectedProvider.apiKeyConfigured ? `Connected ${selectedProvider.apiKeyMasked ?? ''}` : 'Not connected'}
+            </small>
+          </label>
+
+          <label>
+            <span>Base URL</span>
+            <input type="url" name="base_url" value={selectedProvider.baseUrl ?? ''} />
+          </label>
+
+          <label>
+            <span>Default model</span>
+            <input type="text" name="default_model" value={selectedProvider.defaultModel ?? ''} />
+          </label>
+        </div>
+
+        <div class="admin-checkbox-grid">
+          <label>
+            <input type="checkbox" name="is_enabled" checked={selectedProvider.isEnabled} />
+            Enabled
+          </label>
+          <label>
+            <input type="checkbox" name="is_default" checked={selectedProvider.isDefault} />
+            Set as default
+          </label>
+        </div>
+      </section>
+
+      <div class="admin-form-actions">
+        <button type="submit" name="intent" value="save">Save Provider</button>
+        <button
+          class="admin-danger-btn"
+          type="submit"
+          name="intent"
+          value="clear-key"
+          disabled={!selectedProvider.apiKeyConfigured}
+        >
+          Clear API key
+        </button>
+      </div>
+    </form>
+  </section>
+</AdminLayout>

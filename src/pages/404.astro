@@ -1,0 +1,28 @@
+---
+import MainLayout from '../layouts/MainLayout.astro';
+
+Astro.response.status = 404;
+---
+
+<MainLayout
+  title="404 - Page not found"
+  description="The page you are looking for could not be found."
+  canonicalPath={Astro.url.pathname}
+  robots="noindex, follow"
+>
+  <section class="not-found-page poki-not-found" aria-labelledby="not-found-title">
+    <div class="not-found-card">
+      <h1 id="not-found-title">404 - Page not found</h1>
+      <p>The page you are looking for could not be found.</p>
+      <a href="/">Back to homepage</a>
+    </div>
+  </section>
+</MainLayout>
+
+<style>
+  .not-found-page { min-height: 52vh; display: grid; place-items: center; padding: 72px 20px; }
+  .not-found-card { width: min(560px, 100%); padding: 44px; border-radius: 28px; background: #fff; color: #07345f; text-align: center; box-shadow: 0 24px 60px rgba(10, 88, 124, .18); }
+  .not-found-card h1 { margin: 0 0 12px; font-size: clamp(2rem, 5vw, 3.5rem); }
+  .not-found-card p { margin: 0 0 24px; color: #365f7a; }
+  .not-found-card a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 22px; border-radius: 999px; background: #0078ff; color: #fff; font-weight: 800; text-decoration: none; }
+</style>

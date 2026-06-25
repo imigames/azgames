@@ -1,0 +1,12 @@
+---
+interface Props {
+  schema?: unknown | unknown[] | null;
+}
+
+const { schema = null } = Astro.props;
+const safeJson = schema
+  ? JSON.stringify(schema).replace(/</g, '\\u003c')
+  : '';
+---
+
+{schema && <script type="application/ld+json" set:html={safeJson} />}

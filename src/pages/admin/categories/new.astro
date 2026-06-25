@@ -1,0 +1,64 @@
+---
+import AdminCategoryForm from '../../../components/admin/AdminCategoryForm.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import {
+  adminCreateCategory,
+  type AdminCategoryFormData,
+} from '../../../lib/admin/categories-admin';
+
+export const prerender = false;
+
+const emptyCategory: AdminCategoryFormData = {
+  name: '',
+  slug: '',
+  description: '',
+  icon: '',
+  image: '',
+  seoTitle: '',
+  seoDescription: '',
+  sortOrder: 0,
+  isActive: true,
+};
+
+const toCategoryFormData = (formData: FormData): AdminCategoryFormData => ({
+  name: String(formData.get('name') ?? ''),
+  slug: String(formData.get('slug') ?? ''),
+  description: String(formData.get('description') ?? ''),
+  icon: String(formData.get('icon') ?? ''),
+  image: String(formData.get('image') ?? ''),
+  seoTitle: String(formData.get('seoTitle') ?? ''),
+  seoDescription: String(formData.get('seoDescription') ?? ''),
+  sortOrder: Number(formData.get('sortOrder') ?? 0),
+  isActive: formData.has('isActive'),
+});
+
+let values = emptyCategory;
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  values = toCategoryFormData(await Astro.request.formData());
+  const result = await adminCreateCategory(values);
+
+  if (result.success) {
+    return Astro.redirect('/admin/categories');
+  }
+
+  error = result.error ?? 'Unable to create category.';
+}
+---
+
+<AdminLayout title="Add Category | Free Game Zone" description="Create a new category.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/categories">Categories</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-new-category-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-new-category-title">Add Category</h1>
+        <p>Create a browser games category.</p>
+      </div>
+    </div>
+    <AdminCategoryForm mode="create" values={values} error={error} />
+  </section>
+</AdminLayout>

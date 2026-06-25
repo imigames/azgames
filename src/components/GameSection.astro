@@ -1,0 +1,35 @@
+---
+import GameCard from './GameCard.astro';
+import type { Game } from '../types/game';
+
+interface Props {
+  title: string;
+  games: Game[];
+  viewMoreLink?: string;
+}
+
+const { title, games, viewMoreLink } = Astro.props;
+const featuredFirst = title.toLowerCase() === 'hot games';
+const sectionId = title.toLowerCase().replace(' games', '').replaceAll(' ', '-');
+---
+
+<section
+  class:list={['game-section', { 'game-section--featured-first': featuredFirst }]}
+  id={sectionId}
+  aria-labelledby={`${title.toLowerCase().replaceAll(' ', '-')}-heading`}
+>
+  <div class="game-section-heading">
+    <h2 id={`${title.toLowerCase().replaceAll(' ', '-')}-heading`}>{title}</h2>
+    {viewMoreLink && <a href={viewMoreLink}>View more &gt;</a>}
+  </div>
+
+  <div class="game-section-grid">
+    {
+      games.map((game, index) => (
+        <div class="game-section-card">
+          <GameCard game={game} size={featuredFirst && index === 0 ? 'large' : 'small'} />
+        </div>
+      ))
+    }
+  </div>
+</section>

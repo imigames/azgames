@@ -1,0 +1,75 @@
+---
+import AdminPromptTemplateForm from '../../../components/admin/AdminPromptTemplateForm.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import {
+  adminCreatePromptTemplate,
+  type AdminPromptTemplateData,
+} from '../../../lib/prompt-templates';
+
+export const prerender = false;
+
+const parseVariables = (value: FormDataEntryValue | null) =>
+  String(value ?? '')
+    .split(/[\n,]/)
+    .map((variable) => variable.trim())
+    .filter(Boolean);
+
+const emptyTemplate: AdminPromptTemplateData = {
+  name: '',
+  templateKey: '',
+  description: '',
+  targetType: 'game',
+  action: 'generate_meta_description',
+  variables: ['title', 'category', 'description', 'tags'],
+  systemPrompt: '',
+  userPrompt: '',
+  isActive: true,
+};
+
+const toPromptTemplateData = (formData: FormData): AdminPromptTemplateData => ({
+  name: String(formData.get('name') ?? ''),
+  templateKey: String(formData.get('templateKey') ?? ''),
+  description: String(formData.get('description') ?? ''),
+  targetType: String(formData.get('targetType') ?? ''),
+  action: String(formData.get('action') ?? ''),
+  variables: parseVariables(formData.get('variables')),
+  systemPrompt: String(formData.get('systemPrompt') ?? ''),
+  userPrompt: String(formData.get('userPrompt') ?? ''),
+  isActive: formData.has('isActive'),
+});
+
+let values = emptyTemplate;
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  values = toPromptTemplateData(formData);
+  const result = await adminCreatePromptTemplate(values);
+
+  if (result.success) {
+    return Astro.redirect('/admin/prompt-templates');
+  }
+
+  error = result.error ?? 'Unable to create prompt template.';
+}
+---
+
+<AdminLayout
+  title="Add Prompt Template | Free Game Zone"
+  description="Create a new AI prompt template."
+>
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/prompt-templates">Prompt Templates</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-new-prompt-template-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-new-prompt-template-title">Add Template</h1>
+        <p>Create an AI prompt used for SEO generation.</p>
+      </div>
+    </div>
+
+    <AdminPromptTemplateForm mode="create" values={values} error={error} />
+  </section>
+</AdminLayout>

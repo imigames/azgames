@@ -1,0 +1,91 @@
+---
+import AdminPromptTemplateForm from '../../../../components/admin/AdminPromptTemplateForm.astro';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import {
+  adminDeletePromptTemplate,
+  adminGetPromptTemplateById,
+  adminUpdatePromptTemplate,
+  type AdminPromptTemplateData,
+} from '../../../../lib/prompt-templates';
+
+export const prerender = false;
+
+const id = Astro.params.id;
+
+if (!id) {
+  return Astro.redirect('/admin/prompt-templates');
+}
+
+const parseVariables = (value: FormDataEntryValue | null) =>
+  String(value ?? '')
+    .split(/[\n,]/)
+    .map((variable) => variable.trim())
+    .filter(Boolean);
+
+const toPromptTemplateData = (formData: FormData): AdminPromptTemplateData => ({
+  name: String(formData.get('name') ?? ''),
+  templateKey: String(formData.get('templateKey') ?? ''),
+  description: String(formData.get('description') ?? ''),
+  targetType: String(formData.get('targetType') ?? ''),
+  action: String(formData.get('action') ?? ''),
+  variables: parseVariables(formData.get('variables')),
+  systemPrompt: String(formData.get('systemPrompt') ?? ''),
+  userPrompt: String(formData.get('userPrompt') ?? ''),
+  isActive: formData.has('isActive'),
+});
+
+let { template, error } = await adminGetPromptTemplateById(id);
+let actionError = error ?? '';
+
+if (!template) {
+  return Astro.redirect('/admin/prompt-templates');
+}
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const intent = String(formData.get('intent') ?? 'save');
+
+  if (intent === 'deactivate') {
+    const result = await adminDeletePromptTemplate(id);
+
+    if (result.success) {
+      return Astro.redirect('/admin/prompt-templates');
+    }
+
+    actionError = result.error ?? 'Unable to deactivate prompt template.';
+  } else {
+    const values = toPromptTemplateData(formData);
+    const result = await adminUpdatePromptTemplate(id, values);
+
+    if (result.success) {
+      return Astro.redirect('/admin/prompt-templates');
+    }
+
+    actionError = result.error ?? 'Unable to update prompt template.';
+    template = {
+      ...template,
+      ...values,
+    };
+  }
+}
+---
+
+<AdminLayout
+  title={`Edit ${template.name} | Free Game Zone`}
+  description="Edit an AI prompt template."
+>
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/prompt-templates">Prompt Templates</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-edit-prompt-template-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-edit-prompt-template-title">Edit Template</h1>
+        <p>{template.name}</p>
+      </div>
+    </div>
+
+    <AdminPromptTemplateForm mode="edit" values={template} error={actionError} />
+  </section>
+</AdminLayout>

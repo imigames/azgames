@@ -1,0 +1,115 @@
+---
+import { getFallbackGradientClass, getFallbackIcon } from '../utils/gameFallback';
+import type { Game } from '../types/game';
+
+interface Props {
+  games: Game[];
+}
+
+const { games } = Astro.props;
+const visibleGames = games.slice(0, 12);
+
+const formatPlays = (plays: number) => {
+  if (plays >= 1_000_000) {
+    return `${(plays / 1_000_000).toFixed(plays >= 10_000_000 ? 0 : 1)}M plays`;
+  }
+
+  if (plays >= 1_000) {
+    return `${(plays / 1_000).toFixed(plays >= 10_000 ? 0 : 1)}K plays`;
+  }
+
+  return `${Math.max(0, Math.round(plays))} plays`;
+};
+---
+
+{
+  visibleGames.length > 0 && (
+    <section class="top-games-section" aria-labelledby="top-games-heading">
+      <div class="top-games-header">
+        <span class="top-games-icon" aria-hidden="true">
+          TOP
+        </span>
+        <div class="top-games-title">
+          <h2 id="top-games-heading">Top Games</h2>
+          <a class="top-games-link" href="/popular-games/">
+            Show all games
+          </a>
+        </div>
+      </div>
+
+      <div class="top-games-carousel-wrap">
+        <div class="top-games-carousel" data-top-games-carousel aria-label="Top games carousel">
+          {visibleGames.map((game, index) => {
+            const fallbackGradientClass = getFallbackGradientClass(game.id);
+            const fallbackIcon = getFallbackIcon(game.id);
+
+            return (
+              <a class="top-game-card" href={`/game/${game.slug}/`} aria-label={`Play ${game.title}`}>
+                <span class:list={['top-game-placeholder', fallbackGradientClass]} aria-hidden="true">
+                  <span>{fallbackIcon}</span>
+                </span>
+                {game.thumbnail && (
+                  <img
+                    class="top-game-image"
+                    src={game.thumbnail}
+                    alt={`${game.title} game thumbnail`}
+                    loading="lazy"
+                    decoding="async"
+                    onerror="this.hidden = true"
+                  />
+                )}
+                <span class="top-game-badge">{index === 0 ? 'HOT' : 'TOP'}</span>
+                <span class="top-game-overlay" aria-hidden="true"></span>
+                <span class="top-game-meta">
+                  <span class="top-game-mini-thumb" aria-hidden="true">
+                    {game.thumbnail ? (
+                      <img src={game.thumbnail} alt="" loading="lazy" decoding="async" onerror="this.hidden = true" />
+                    ) : (
+                      <span>{fallbackIcon}</span>
+                    )}
+                  </span>
+                  <span class="top-game-copy">
+                    <span class="top-game-title">{game.title}</span>
+                    <span class="top-game-plays">
+                      <span aria-hidden="true">+</span>
+                      {formatPlays(game.plays)}
+                    </span>
+                  </span>
+                </span>
+              </a>
+            );
+          })}
+        </div>
+        <button
+          class="top-games-scroll-btn"
+          type="button"
+          data-top-games-scroll-next
+          aria-label="Scroll top games"
+        >
+          ›
+        </button>
+      </div>
+    </section>
+  )
+}
+
+<script is:inline>
+  (() => {
+    const carousel = document.querySelector('[data-top-games-carousel]');
+    const nextButton = document.querySelector('[data-top-games-scroll-next]');
+
+    if (!carousel || !nextButton) {
+      return;
+    }
+
+    nextButton.addEventListener('click', () => {
+      const nearEnd = carousel.scrollLeft + carousel.clientWidth >= carousel.scrollWidth - 20;
+
+      if (nearEnd) {
+        carousel.scrollTo({ left: 0, behavior: 'smooth' });
+      } else {
+        carousel.scrollBy({ left: 320, behavior: 'smooth' });
+      }
+    });
+  })();
+</script>

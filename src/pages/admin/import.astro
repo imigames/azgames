@@ -1,0 +1,226 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminImportGamesFromText,
+  adminPreviewGamesImport,
+  type ImportDuplicateMode,
+  type ImportPreviewResult,
+  type ImportResult,
+} from '../../lib/admin/import-admin';
+
+export const prerender = false;
+
+const getUploadedText = async (formData: FormData) => {
+  const uploadedFile = formData.get('importFile');
+
+  if (
+    uploadedFile &&
+    typeof uploadedFile === 'object' &&
+    'size' in uploadedFile &&
+    'text' in uploadedFile &&
+    typeof uploadedFile.text === 'function' &&
+    uploadedFile.size > 0
+  ) {
+    return uploadedFile.text();
+  }
+
+  return '';
+};
+
+let csvText = '';
+let duplicateMode: ImportDuplicateMode = 'skip';
+let importAsActive = false;
+let preview: ImportPreviewResult | null = null;
+let importResult: ImportResult | null = null;
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const intent = String(formData.get('intent') ?? 'preview');
+  duplicateMode = String(formData.get('duplicateMode') ?? 'skip') === 'update' ? 'update' : 'skip';
+  importAsActive = formData.has('importAsActive');
+  const pastedText = String(formData.get('csvText') ?? '');
+  const uploadedText = await getUploadedText(formData);
+  csvText = uploadedText.trim() ? uploadedText : pastedText;
+
+  if (intent === 'import') {
+    importResult = await adminImportGamesFromText(csvText, duplicateMode, importAsActive);
+
+    if (importResult.error) {
+      error = importResult.error;
+    }
+  } else {
+    preview = await adminPreviewGamesImport(csvText);
+
+    if (preview.error) {
+      error = preview.error;
+    }
+  }
+}
+
+const duplicateExistingCount = preview?.rows.filter((row) => row.existsInDatabase).length ?? 0;
+const duplicateInputCount = preview?.rows.filter((row) => row.isDuplicateInInput).length ?? 0;
+const invalidCount = preview?.rows.filter((row) => row.errors.length > 0).length ?? 0;
+const validCount = preview?.rows.filter((row) => row.errors.length === 0 && !row.isDuplicateInInput).length ?? 0;
+---
+
+<AdminLayout title="Import Games | Free Game Zone" description="Bulk import games into Supabase.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/">Dashboard</a>
+    <a class="admin-link-btn" href="/admin/games">Games</a>
+    <form method="post" action="/admin/">
+      <input type="hidden" name="intent" value="logout" />
+      <button class="admin-logout-btn" type="submit">Logout</button>
+    </form>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-import-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-import-title">Import Games</h1>
+        <p>Paste CSV/TSV rows with gameName, gameIframe, gameImage, and optional category headers.</p>
+      </div>
+    </div>
+
+    <form class="admin-game-form" method="post" enctype="multipart/form-data" action="/admin/import">
+      {error && <p class="admin-error">{error}</p>}
+      {
+        importResult && !importResult.error && (
+          <div class="admin-success">
+            <p>
+              Imported {importResult.importedCount} game{importResult.importedCount === 1 ? '' : 's'},
+              updated {importResult.updatedCount}, skipped {importResult.skippedCount}.
+            </p>
+            <p>
+              {importAsActive
+                ? 'Imported games were created as active.'
+                : 'Imported games are inactive by default. Review and activate them from the Games admin page.'}
+            </p>
+          </div>
+        )
+      }
+
+      <div class="admin-form-grid">
+        <label class="admin-form-wide">
+          <span>CSV/TSV data</span>
+          <textarea
+            name="csvText"
+            rows="10"
+            placeholder={'gameName,gameIframe,gameImage,category\nExample Game,https://example.com/embed,https://example.com/image.jpg,Casual Games'}
+          >{csvText}</textarea>
+          <small class="admin-form-help">
+            If category is provided, it must already exist. Missing categories are skipped and are not created automatically.
+          </small>
+        </label>
+        <label class="admin-form-wide">
+          <span>Upload CSV/TSV file</span>
+          <input type="file" name="importFile" accept=".csv,.tsv,text/csv,text/tab-separated-values" />
+        </label>
+      </div>
+
+      <fieldset class="admin-import-options">
+        <legend>Publish status</legend>
+        <label>
+          <input type="checkbox" name="importAsActive" checked={importAsActive} />
+          Import games as active
+        </label>
+        <p class="admin-form-help">
+          Keep this unchecked for bulk imports. Imported games will stay hidden until you review and activate them.
+        </p>
+      </fieldset>
+
+      <fieldset class="admin-import-options">
+        <legend>Duplicate slugs</legend>
+        <label>
+          <input type="radio" name="duplicateMode" value="skip" checked={duplicateMode === 'skip'} />
+          Skip duplicates
+        </label>
+        <label>
+          <input type="radio" name="duplicateMode" value="update" checked={duplicateMode === 'update'} />
+          Update existing
+        </label>
+      </fieldset>
+
+      <div class="admin-form-actions">
+        <button type="submit" name="intent" value="preview">Preview Import</button>
+        {
+          preview && preview.rows.length > 0 && (
+            <button type="submit" name="intent" value="import">Import Games</button>
+          )
+        }
+        <a class="admin-link-btn" href="/admin/games">Cancel</a>
+      </div>
+    </form>
+
+    {
+      preview && preview.rows.length > 0 && (
+        <>
+          <div class="admin-import-stats" aria-label="Import preview stats">
+            <span>{preview.rows.length} rows</span>
+            <span>{validCount} valid</span>
+            <span>{duplicateExistingCount} existing slug{duplicateExistingCount === 1 ? '' : 's'}</span>
+            <span>{duplicateInputCount} duplicate in input</span>
+            <span>{invalidCount} invalid</span>
+            <span>Separator: {preview.separator}</span>
+          </div>
+
+          <div class="admin-table-wrap">
+            <table class="admin-table admin-import-table">
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  <th>Title</th>
+                  <th>Slug</th>
+                  <th>Category</th>
+                  <th>Iframe</th>
+                  <th>Thumbnail</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {
+                  preview.rows.map((row) => {
+                    const hasProblems =
+                      row.errors.length > 0 || row.isDuplicateInInput || row.existsInDatabase;
+                    const statuses = [
+                      row.errors.length > 0 ? row.errors.join(', ') : '',
+                      row.isDuplicateInInput ? 'Duplicate in input' : '',
+                      row.existsInDatabase ? 'Already exists' : '',
+                      !row.existsInDatabase && row.errors.length === 0 && !row.isDuplicateInInput
+                        ? importAsActive
+                          ? 'Will import as active'
+                          : 'Will import as inactive'
+                        : '',
+                    ].filter(Boolean);
+
+                    return (
+                      <tr>
+                        <td>{row.rowNumber}</td>
+                        <td>{row.title || '-'}</td>
+                        <td><code>{row.slug || '-'}</code></td>
+                        <td>{row.categorySlug}</td>
+                        <td><span class="admin-import-url">{row.iframeUrl || '-'}</span></td>
+                        <td><span class="admin-import-url">{row.thumbnail || '-'}</span></td>
+                        <td>
+                          <span class:list={[
+                            'admin-import-status',
+                            {
+                              'admin-import-status--ok': !hasProblems,
+                              'admin-import-status--warn': hasProblems,
+                            },
+                          ]}>
+                            {statuses.length > 0 ? statuses.join(' / ') : 'Ready'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                }
+              </tbody>
+            </table>
+          </div>
+        </>
+      )
+    }
+  </section>
+</AdminLayout>

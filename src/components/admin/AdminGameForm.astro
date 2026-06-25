@@ -1,0 +1,245 @@
+---
+import type { AdminGame, AdminGameCategory, AdminGameFormData } from '../../lib/admin/games-admin';
+
+interface Props {
+  mode: 'create' | 'edit';
+  categories: AdminGameCategory[];
+  values: AdminGameFormData | AdminGame;
+  error?: string;
+}
+
+const { mode, categories, values, error = '' } = Astro.props;
+const field = (name: keyof AdminGameFormData | keyof AdminGame) => {
+  const value = values[name as keyof typeof values];
+  return value === null || value === undefined ? '' : String(value);
+};
+const checked = (name: keyof AdminGameFormData | keyof AdminGame) => Boolean(values[name as keyof typeof values]);
+const articlePlaceholder = `<h2>About this game</h2>
+<p>Write your article here...</p>
+<h2>How to play</h2>
+<ul>
+  <li>Use keyboard or mouse controls.</li>
+</ul>`;
+---
+
+<form class="admin-game-form" method="post" data-admin-game-form data-game-id={field('id')} data-game-slug={field('slug')}>
+  {error && <p class="admin-error">{error}</p>}
+
+  <div class="admin-form-grid">
+    <label>
+      <span>Title *</span>
+      <input type="text" name="title" value={field('title')} required />
+    </label>
+    <label>
+      <span>Slug *</span>
+      <input type="text" name="slug" value={field('slug')} placeholder="auto-generated from title" />
+    </label>
+    <label>
+      <span>Category</span>
+      <select name="categorySlug">
+        <option value="">Uncategorized</option>
+        {
+          categories.map((category) => (
+            <option value={category.slug} selected={category.slug === field('categorySlug')}>
+              {category.name}
+            </option>
+          ))
+        }
+      </select>
+    </label>
+    <label>
+      <span>Thumbnail</span>
+      <input type="url" name="thumbnail" value={field('thumbnail')} />
+    </label>
+    <label class="admin-form-wide">
+      <span>Iframe URL *</span>
+      <input type="url" name="iframeUrl" value={field('iframeUrl')} required />
+    </label>
+    <label>
+      <span>Rating</span>
+      <input type="number" name="rating" min="0" max="5" step="0.1" value={field('rating') || '4.5'} />
+    </label>
+    <label>
+      <span>Plays</span>
+      <input type="number" name="plays" min="0" step="1" value={field('plays') || '0'} />
+    </label>
+    <label>
+      <span>SEO title</span>
+      <input type="text" name="seoTitle" value={field('seoTitle')} />
+    </label>
+    <label>
+      <span>SEO Description</span>
+      <input type="text" name="seoDescription" value={field('seoDescription')} />
+      <small class="admin-form-help">This is used as the game meta description.</small>
+    </label>
+    <div class="admin-form-wide admin-inline-ai-tools" aria-label="AI tools for game content">
+      <div>
+        <strong>AI Tools</strong>
+        <small class="admin-form-help">Generate draft content, review it, then save the game when ready.</small>
+      </div>
+      <div class="admin-inline-ai-actions">
+        <button type="button" data-ai-game-action="generate_article">Generate Article</button>
+        <button type="button" data-ai-game-action="generate_meta_description">Generate Meta Description</button>
+      </div>
+      <p class="admin-ai-inline-message" data-ai-game-message hidden></p>
+    </div>
+    <label class="admin-form-wide">
+      <span>Article</span>
+      <textarea
+        class="admin-article-textarea"
+        name="description"
+        rows="16"
+        placeholder={articlePlaceholder}
+      >{field('description')}</textarea>
+      <small class="admin-form-help">
+        HTML is allowed. Use headings, paragraphs, lists, and links to structure the game article.
+      </small>
+      <div class="admin-form-info-note">
+        Article supports safe HTML. Use H2/H3 headings, paragraphs, and lists. Do not add scripts,
+        iframes, forms, or inline styles. H1 tags will be normalized to H2 on the public game page.
+      </div>
+    </label>
+  </div>
+
+  <div class="admin-checkbox-grid">
+    <label><input type="checkbox" name="isNew" checked={checked('isNew')} /> New</label>
+    <label><input type="checkbox" name="isTrending" checked={checked('isTrending')} /> Trending</label>
+    <label><input type="checkbox" name="isHot" checked={checked('isHot')} /> Hot</label>
+    <label><input type="checkbox" name="isPopular" checked={checked('isPopular')} /> Popular</label>
+    <label><input type="checkbox" name="isFeatured" checked={checked('isFeatured')} /> Featured</label>
+    <label><input type="checkbox" name="isActive" checked={checked('isActive')} /> Active</label>
+  </div>
+
+  <div class="admin-form-actions">
+    <button type="submit">{mode === 'create' ? 'Create Game' : 'Save Changes'}</button>
+    <a class="admin-link-btn" href="/admin/games">Cancel</a>
+  </div>
+</form>
+
+<script>
+  (() => {
+    const forms = document.querySelectorAll('[data-admin-game-form]');
+
+    forms.forEach((form) => {
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+
+      const buttons = Array.from(form.querySelectorAll('[data-ai-game-action]'));
+      const message = form.querySelector('[data-ai-game-message]');
+      const titleInput = form.querySelector('[name="title"]');
+      const categorySelect = form.querySelector('[name="categorySlug"]');
+      const seoDescriptionInput = form.querySelector('[name="seoDescription"]');
+      const articleField = form.querySelector('[name="description"]');
+
+      const setMessage = (text, type = 'info') => {
+        if (!message) {
+          return;
+        }
+
+        message.textContent = text;
+        message.hidden = false;
+        message.classList.toggle('is-error', type === 'error');
+        message.classList.toggle('is-success', type === 'success');
+      };
+
+      const setLoading = (active, currentButton) => {
+        buttons.forEach((button) => {
+          if (!(button instanceof HTMLButtonElement)) {
+            return;
+          }
+
+          button.disabled = active;
+
+          if (button === currentButton) {
+            if (active) {
+              button.dataset.originalText = button.textContent || '';
+              button.textContent = 'Generating...';
+            } else {
+              button.textContent = button.dataset.originalText || button.textContent;
+            }
+          }
+        });
+      };
+
+      const getFieldValue = (field) =>
+        field instanceof HTMLInputElement ||
+        field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLSelectElement
+          ? field.value.trim()
+          : '';
+
+      const getCategoryLabel = () => {
+        if (!(categorySelect instanceof HTMLSelectElement)) {
+          return '';
+        }
+
+        return categorySelect.selectedOptions[0]?.textContent?.trim() || categorySelect.value;
+      };
+
+      buttons.forEach((button) => {
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        button.addEventListener('click', async () => {
+          const action = button.getAttribute('data-ai-game-action') || '';
+          const targetField = action === 'generate_article' ? articleField : seoDescriptionInput;
+
+          if (
+            !(
+              targetField instanceof HTMLInputElement ||
+              targetField instanceof HTMLTextAreaElement
+            )
+          ) {
+            return;
+          }
+
+          setLoading(true, button);
+          setMessage('Generating...', 'info');
+
+          try {
+            const response = await fetch('/api/admin/generate-game-content', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({
+                action,
+                gameId: form.getAttribute('data-game-id') || '',
+                targetSlug: getFieldValue(form.querySelector('[name="slug"]')),
+                title: getFieldValue(titleInput),
+                category: getCategoryLabel(),
+                seoDescription: getFieldValue(seoDescriptionInput),
+                article: getFieldValue(articleField),
+                tags: [getCategoryLabel(), getFieldValue(form.querySelector('[name="slug"]'))].filter(Boolean),
+              }),
+            });
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok || !result.ok || typeof result.text !== 'string') {
+              throw new Error(result.message || 'AI generation failed.');
+            }
+
+            targetField.value = result.text.trim();
+            targetField.focus();
+            targetField.dispatchEvent(new Event('input', { bubbles: true }));
+            setMessage(
+              action === 'generate_article'
+                ? 'Generated article added to the Article field. Review it before saving.'
+                : 'Generated meta description added. Review it before saving.',
+              'success',
+            );
+          } catch (error) {
+            setMessage(
+              error instanceof Error ? error.message : 'AI generation failed.',
+              'error',
+            );
+          } finally {
+            setLoading(false, button);
+          }
+        });
+      });
+    });
+  })();
+</script>

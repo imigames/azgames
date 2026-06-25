@@ -1,0 +1,315 @@
+---
+import AdminCategoryForm from '../../../../components/admin/AdminCategoryForm.astro';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { generateAiText } from '../../../../lib/ai-client';
+import { adminCreateGenerationLog } from '../../../../lib/ai-providers';
+import {
+  adminGetPromptTemplateByKey,
+  renderPromptTemplate,
+} from '../../../../lib/prompt-templates';
+import {
+  adminGetCategoryById,
+  adminUpdateCategory,
+  type AdminCategoryFormData,
+} from '../../../../lib/admin/categories-admin';
+
+export const prerender = false;
+
+const id = Astro.params.id;
+
+if (!id) {
+  return Astro.redirect('/admin/categories');
+}
+
+const toCategoryFormData = (formData: FormData): AdminCategoryFormData => ({
+  name: String(formData.get('name') ?? ''),
+  slug: String(formData.get('slug') ?? ''),
+  description: String(formData.get('description') ?? ''),
+  icon: String(formData.get('icon') ?? ''),
+  image: String(formData.get('image') ?? ''),
+  seoTitle: String(formData.get('seoTitle') ?? ''),
+  seoDescription: String(formData.get('seoDescription') ?? ''),
+  sortOrder: Number(formData.get('sortOrder') ?? 0),
+  isActive: formData.has('isActive'),
+});
+
+let category = await adminGetCategoryById(id);
+let error = '';
+let aiError = '';
+let aiResult:
+  | {
+      title: string;
+      text: string;
+      applyTarget: 'description' | 'seoTitle' | 'seoDescription';
+    }
+  | null = null;
+
+if (!category) {
+  return Astro.redirect('/admin/categories');
+}
+
+const categoryVariables = () => ({
+  categoryName: category.name,
+  categorySlug: category.slug,
+  category: category.name,
+  currentDescription: category.description,
+  description: category.description,
+  seoTitle: category.seoTitle,
+  seoDescription: category.seoDescription,
+});
+const promptTemplateError = 'Prompt template is missing or inactive. Please check Prompt Templates.';
+const formatPromptForLog = (systemPrompt: string, userPrompt: string) =>
+  systemPrompt ? `System prompt:\n${systemPrompt}\n\nUser prompt:\n${userPrompt}` : userPrompt;
+
+const logCategoryGeneration = async ({
+  action,
+  prompt,
+  result,
+  status,
+  errorMessage,
+  providerKey,
+  model,
+}: {
+  action: string;
+  prompt?: string;
+  result?: string;
+  status: 'success' | 'error';
+  errorMessage?: string;
+  providerKey?: string;
+  model?: string;
+}) =>
+  adminCreateGenerationLog({
+    providerKey,
+    model,
+    targetType: 'category',
+    targetId: category.id,
+    targetSlug: category.slug,
+    action,
+    prompt,
+    result,
+    status,
+    errorMessage,
+  });
+
+const generateCategoryDescription = async () => {
+  const { template, error: templateError } = await adminGetPromptTemplateByKey('category_description');
+  const action = 'generate_category_description';
+
+  if (templateError || !template) {
+    aiError = promptTemplateError;
+    await logCategoryGeneration({ action, status: 'error', errorMessage: aiError });
+    return;
+  }
+
+  const renderedPrompt = renderPromptTemplate(template, categoryVariables());
+
+  try {
+    const generated = await generateAiText({
+      system: renderedPrompt.systemPrompt,
+      prompt: renderedPrompt.userPrompt,
+      maxTokens: 800,
+      temperature: 0.65,
+    });
+
+    await logCategoryGeneration({
+      action,
+      prompt: formatPromptForLog(renderedPrompt.systemPrompt, renderedPrompt.userPrompt),
+      result: generated.text,
+      status: 'success',
+      providerKey: generated.providerKey,
+      model: generated.model,
+    });
+
+    aiResult = {
+      title: 'Generated Category Description',
+      text: generated.text,
+      applyTarget: 'description',
+    };
+  } catch (generationError) {
+    aiError =
+      generationError instanceof Error
+        ? generationError.message
+        : 'AI generation failed.';
+
+    await logCategoryGeneration({
+      action,
+      prompt: formatPromptForLog(renderedPrompt.systemPrompt, renderedPrompt.userPrompt),
+      status: 'error',
+      errorMessage: aiError,
+    });
+  }
+};
+
+const generateCategorySeoField = async (
+  action: 'generate_category_seo_title' | 'generate_category_seo_description',
+) => {
+  const isTitle = action === 'generate_category_seo_title';
+  const templateKey = isTitle ? 'category_seo_title' : 'category_meta_description';
+  const { template, error: templateError } = await adminGetPromptTemplateByKey(templateKey);
+
+  if (templateError || !template) {
+    aiError = promptTemplateError;
+    await logCategoryGeneration({ action, status: 'error', errorMessage: aiError });
+    return;
+  }
+
+  const renderedPrompt = renderPromptTemplate(template, categoryVariables());
+
+  try {
+    const generated = await generateAiText({
+      system: renderedPrompt.systemPrompt,
+      prompt: renderedPrompt.userPrompt,
+      maxTokens: isTitle ? 120 : 220,
+      temperature: 0.6,
+    });
+
+    await logCategoryGeneration({
+      action,
+      prompt: formatPromptForLog(renderedPrompt.systemPrompt, renderedPrompt.userPrompt),
+      result: generated.text,
+      status: 'success',
+      providerKey: generated.providerKey,
+      model: generated.model,
+    });
+
+    aiResult = {
+      title: isTitle ? 'Generated SEO Title' : 'Generated SEO Description',
+      text: generated.text,
+      applyTarget: isTitle ? 'seoTitle' : 'seoDescription',
+    };
+  } catch (generationError) {
+    aiError =
+      generationError instanceof Error
+        ? generationError.message
+        : 'AI generation failed.';
+
+    await logCategoryGeneration({
+      action,
+      prompt: formatPromptForLog(renderedPrompt.systemPrompt, renderedPrompt.userPrompt),
+      status: 'error',
+      errorMessage: aiError,
+    });
+  }
+};
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const action = String(formData.get('adminAction') ?? 'save');
+
+  if (action === 'generate_category_description') {
+    await generateCategoryDescription();
+  } else if (action === 'generate_category_seo_title') {
+    await generateCategorySeoField('generate_category_seo_title');
+  } else if (action === 'generate_category_seo_description') {
+    await generateCategorySeoField('generate_category_seo_description');
+  } else {
+    const values = toCategoryFormData(formData);
+    const result = await adminUpdateCategory(id, values);
+
+    if (result.success) {
+      return Astro.redirect('/admin/categories');
+    }
+
+    error = result.error ?? 'Unable to update category.';
+    category = {
+      ...category,
+      ...values,
+    };
+  }
+}
+---
+
+<AdminLayout title={`Edit ${category.name} | Free Game Zone`} description="Edit category details.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/categories">Categories</a>
+    <a class="admin-link-btn" href={`/category/${category.slug.endsWith('-games') ? category.slug : `${category.slug}-games`}/`}>View</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-edit-category-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-edit-category-title">Edit Category</h1>
+        <p>{category.name}</p>
+      </div>
+    </div>
+
+    <section class="admin-form-card admin-ai-tools-card" aria-labelledby="admin-category-ai-tools-title">
+      <div class="admin-ai-tools-heading">
+        <div>
+          <h2 id="admin-category-ai-tools-title">AI Tools</h2>
+          <p>Generate category SEO content on the server, review it, then apply it to the form.</p>
+        </div>
+      </div>
+
+      {aiError && <p class="admin-error">{aiError}</p>}
+
+      <div class="admin-form-actions">
+        <form method="post" action={Astro.url.pathname}>
+          <input type="hidden" name="adminAction" value="generate_category_description" />
+          <button type="submit">Generate Category Description</button>
+        </form>
+        <form method="post" action={Astro.url.pathname}>
+          <input type="hidden" name="adminAction" value="generate_category_seo_title" />
+          <button type="submit">Generate SEO Title</button>
+        </form>
+        <form method="post" action={Astro.url.pathname}>
+          <input type="hidden" name="adminAction" value="generate_category_seo_description" />
+          <button type="submit">Generate SEO Description</button>
+        </form>
+      </div>
+
+      {
+        aiResult && (
+          <div class="admin-ai-result" data-ai-result-wrap>
+            <div class="admin-ai-result-heading">
+              <strong>{aiResult.title}</strong>
+              <button
+                type="button"
+                data-ai-apply={aiResult.applyTarget}
+                aria-label={`Apply ${aiResult.title}`}
+              >
+                {aiResult.applyTarget === 'description'
+                  ? 'Apply to Description'
+                  : aiResult.applyTarget === 'seoTitle'
+                    ? 'Apply to SEO Title'
+                    : 'Apply to SEO Description'}
+              </button>
+            </div>
+            <textarea readonly rows={aiResult.applyTarget === 'description' ? '10' : '4'} data-ai-result>
+              {aiResult.text}
+            </textarea>
+          </div>
+        )
+      }
+    </section>
+
+    <AdminCategoryForm mode="edit" values={category} error={error} />
+  </section>
+
+  <script>
+    const applyButtons = document.querySelectorAll('[data-ai-apply]');
+
+    applyButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const targetName = button.getAttribute('data-ai-apply');
+        const resultWrap = button.closest('[data-ai-result-wrap]');
+        const resultField = resultWrap?.querySelector('[data-ai-result]');
+        const targetField = targetName
+          ? document.querySelector(`[name="${targetName}"]`)
+          : null;
+
+        if (!(resultField instanceof HTMLTextAreaElement)) {
+          return;
+        }
+
+        if (
+          targetField instanceof HTMLInputElement ||
+          targetField instanceof HTMLTextAreaElement
+        ) {
+          targetField.value = resultField.value.trim();
+          targetField.focus();
+        }
+      });
+    });
+  </script>
+</AdminLayout>

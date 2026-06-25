@@ -1,0 +1,83 @@
+---
+import AdminGameForm from '../../../../components/admin/AdminGameForm.astro';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import {
+  adminGetGameById,
+  adminListGameCategories,
+  adminUpdateGame,
+  type AdminGame,
+  type AdminGameFormData,
+} from '../../../../lib/admin/games-admin';
+
+export const prerender = false;
+
+const id = Astro.params.id;
+
+if (!id) {
+  return Astro.redirect('/admin/games');
+}
+
+const toGameFormData = (formData: FormData, existingGame: AdminGame): AdminGameFormData => ({
+  title: String(formData.get('title') ?? ''),
+  slug: String(formData.get('slug') ?? ''),
+  categorySlug: String(formData.get('categorySlug') ?? ''),
+  thumbnail: String(formData.get('thumbnail') ?? ''),
+  iframeUrl: String(formData.get('iframeUrl') ?? ''),
+  shortDescription: existingGame.shortDescription ?? '',
+  description: String(formData.get('description') ?? ''),
+  instructions: existingGame.instructions ?? '',
+  rating: Number(formData.get('rating') ?? 4.5),
+  plays: Number(formData.get('plays') ?? 0),
+  isNew: formData.has('isNew'),
+  isTrending: formData.has('isTrending'),
+  isHot: formData.has('isHot'),
+  isPopular: formData.has('isPopular'),
+  isFeatured: formData.has('isFeatured'),
+  isActive: formData.has('isActive'),
+  seoTitle: String(formData.get('seoTitle') ?? ''),
+  seoDescription: String(formData.get('seoDescription') ?? ''),
+});
+
+let game = await adminGetGameById(id);
+let error = '';
+
+if (!game) {
+  return Astro.redirect('/admin/games');
+}
+
+const categories = await adminListGameCategories();
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const values = toGameFormData(formData, game);
+  const result = await adminUpdateGame(id, values);
+
+  if (result.success) {
+    return Astro.redirect('/admin/games');
+  }
+
+  error = result.error ?? 'Unable to update game.';
+  game = {
+    ...game,
+    ...values,
+  };
+}
+---
+
+<AdminLayout title={`Edit ${game.title} | Free Game Zone`} description="Edit game details.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/games">Games</a>
+    <a class="admin-link-btn" href={`/game/${game.slug}/`}>View</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-edit-game-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-edit-game-title">Edit Game</h1>
+        <p>{game.title}</p>
+      </div>
+    </div>
+
+    <AdminGameForm mode="edit" categories={categories} values={game} error={error} />
+  </section>
+</AdminLayout>

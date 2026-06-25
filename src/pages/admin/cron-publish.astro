@@ -1,0 +1,507 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminGetCronPublishLogs,
+  adminGetCronPublishSettings,
+  adminGetCronPublishStats,
+  adminListInactiveGamesForCron,
+  adminUpdateCronPublishSettings,
+  runCronPublishOnce,
+  type CronPublishSummary,
+} from '../../lib/cron-publish';
+import { adminListGameCategories } from '../../lib/admin/games-admin';
+
+export const prerender = false;
+
+const allowedContentStatuses = new Set(['all', 'ready', 'missing_article', 'missing_meta']);
+const limit = 40;
+let actionError = '';
+let actionSuccess = '';
+let runSummary: CronPublishSummary | null = null;
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const intent = String(formData.get('intent') ?? '');
+
+  if (intent === 'save-settings') {
+    const result = await adminUpdateCronPublishSettings({
+      enabled: formData.has('enabled'),
+      batchSize: Number(formData.get('batchSize') ?? 2),
+      maxPerDay: Number(formData.get('maxPerDay') ?? 20),
+      intervalLabel: String(formData.get('intervalLabel') ?? 'Every 1 hour'),
+      requireArticle: formData.has('requireArticle'),
+      requireMetaDescription: formData.has('requireMetaDescription'),
+      articleMaxTokens: Number(formData.get('articleMaxTokens') ?? 1400),
+      metaDescriptionMaxTokens: Number(formData.get('metaDescriptionMaxTokens') ?? 180),
+      categoryFilter: String(formData.get('categoryFilter') ?? 'all'),
+    });
+
+    if (result.success) {
+      actionSuccess = 'Cron Publish settings saved.';
+    } else {
+      actionError = result.error ?? 'Unable to save Cron Publish settings.';
+    }
+  }
+
+  if (intent === 'run-once') {
+    runSummary = await runCronPublishOnce({ source: 'manual' });
+
+    if (runSummary.error) {
+      actionError = runSummary.error;
+    } else {
+      const summaryText = `Processed ${runSummary.processed}, Published ${runSummary.published}, Failed ${runSummary.failed}, Skipped ${runSummary.skipped}.`;
+
+      if (runSummary.failed > 0) {
+        actionError = runSummary.message ? `${summaryText} ${runSummary.message}` : summaryText;
+      } else {
+        actionSuccess = runSummary.message ?? summaryText;
+      }
+    }
+  }
+}
+
+const search = Astro.url.searchParams.get('search')?.trim() ?? '';
+const categorySlug = Astro.url.searchParams.get('category')?.trim() ?? '';
+const requestedContentStatus = Astro.url.searchParams.get('content_status')?.trim() ?? 'all';
+const contentStatus = allowedContentStatuses.has(requestedContentStatus)
+  ? requestedContentStatus
+  : 'all';
+const requestedPage = Number(Astro.url.searchParams.get('page') ?? '1');
+const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+
+const [
+  settingsResult,
+  statsResult,
+  inactiveResult,
+  logsResult,
+  categories,
+] = await Promise.all([
+  adminGetCronPublishSettings(),
+  adminGetCronPublishStats(),
+  adminListInactiveGamesForCron({
+    page,
+    limit,
+    search,
+    categorySlug,
+    contentStatus: contentStatus as 'all' | 'ready' | 'missing_article' | 'missing_meta',
+  }),
+  adminGetCronPublishLogs({ page: 1, limit: 20 }),
+  adminListGameCategories(),
+]);
+
+const { settings } = settingsResult;
+const { stats } = statsResult;
+const { games, total, hasNext } = inactiveResult;
+const pageError = settingsResult.error ?? statsResult.error ?? inactiveResult.error ?? logsResult.error ?? '';
+
+const buildPageHref = (pageNumber: number) => {
+  const params = new URLSearchParams();
+
+  if (search) {
+    params.set('search', search);
+  }
+
+  if (categorySlug) {
+    params.set('category', categorySlug);
+  }
+
+  if (contentStatus !== 'all') {
+    params.set('content_status', contentStatus);
+  }
+
+  if (pageNumber > 1) {
+    params.set('page', String(pageNumber));
+  }
+
+  const query = params.toString();
+  return query ? `/admin/cron-publish?${query}` : '/admin/cron-publish';
+};
+
+const formatDate = (value: string | null | undefined) => {
+  if (!value) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+};
+
+const formatStat = (value: number) => new Intl.NumberFormat('en').format(value);
+---
+
+<AdminLayout
+  title="Cron Publish | Free Game Zone"
+  description="Automatically generate SEO content and publish inactive games gradually."
+>
+  <section class="admin-list-page" aria-labelledby="admin-cron-publish-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-cron-publish-title">Cron Publish</h1>
+        <p>Automatically generate SEO content and publish inactive games gradually.</p>
+      </div>
+    </div>
+
+    {pageError && <p class="admin-error">{pageError}</p>}
+    {actionError && <p class="admin-error">{actionError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+    {
+      runSummary && !runSummary.error && (
+        <p class="admin-success">
+          Processed {runSummary.processed}, Published {runSummary.published}, Failed {runSummary.failed}, Skipped {runSummary.skipped}
+        </p>
+      )
+    }
+    <p class="admin-success" data-cron-run-result hidden></p>
+
+    <form class="admin-game-form" method="post" action="/admin/cron-publish">
+      <input type="hidden" name="intent" value="save-settings" />
+      <section class="admin-settings-section" aria-labelledby="cron-config-title">
+        <div class="admin-settings-section-heading">
+          <h2 id="cron-config-title">Configuration</h2>
+          <p>Recommended: publish 2 games per hour with max 20 per day to avoid sudden mass indexing.</p>
+          <p>Cron Publish always rewrites Article and SEO Description before activating a game.</p>
+          <p>If OpenRouter credits are low, reduce Article max tokens or use a cheaper model.</p>
+        </div>
+
+        <div class="admin-checkbox-grid">
+          <label>
+            <input type="checkbox" name="enabled" checked={settings.enabled} />
+            Enable cron publish
+          </label>
+          <label>
+            <input type="checkbox" name="requireArticle" checked={settings.requireArticle} />
+            Require fresh generated article before publish
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              name="requireMetaDescription"
+              checked={settings.requireMetaDescription}
+            />
+            Require fresh generated meta description before publish
+          </label>
+        </div>
+        <p>Publishing safety currently always generates and requires both fields, even if older saved settings differ.</p>
+
+        <div class="admin-form-grid">
+          <label>
+            <span>Batch size per run</span>
+            <input type="number" name="batchSize" min="1" max="10" value={settings.batchSize} />
+          </label>
+          <label>
+            <span>Max games per day</span>
+            <input type="number" name="maxPerDay" min="1" max="100" value={settings.maxPerDay} />
+          </label>
+          <label>
+            <span>Article max tokens</span>
+            <input
+              type="number"
+              name="articleMaxTokens"
+              min="300"
+              max="1500"
+              value={settings.articleMaxTokens}
+            />
+          </label>
+          <label>
+            <span>Meta description max tokens</span>
+            <input
+              type="number"
+              name="metaDescriptionMaxTokens"
+              min="80"
+              max="300"
+              value={settings.metaDescriptionMaxTokens}
+            />
+          </label>
+          <label>
+            <span>Interval label</span>
+            <input type="text" name="intervalLabel" value={settings.intervalLabel} />
+          </label>
+          <label>
+            <span>Category filter</span>
+            <select name="categoryFilter">
+              <option value="all" selected={settings.categoryFilter === 'all'}>All categories</option>
+              {
+                categories.map((category) => (
+                  <option value={category.slug} selected={settings.categoryFilter === category.slug}>
+                    {category.name}
+                  </option>
+                ))
+              }
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <div class="admin-form-actions">
+        <button type="submit">Save settings</button>
+      </div>
+    </form>
+
+    <form class="admin-form-card" method="post" action="/admin/cron-publish" data-cron-run-form>
+      <input type="hidden" name="intent" value="run-once" />
+      <strong>Manual run</strong>
+      <p>Run once now ignores the enabled toggle, but still respects batch size and daily limits.</p>
+      <div class="admin-form-actions">
+        <button type="submit" data-cron-run-once>Run once now</button>
+      </div>
+    </form>
+
+    <div class="admin-card-grid" aria-label="Cron Publish stats">
+      <div class="admin-card admin-stat-card">
+        <h2>{formatStat(stats.inactiveGamesCount)}</h2>
+        <p>Inactive games</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatStat(stats.readyToPublishCount)}</h2>
+        <p>Eligible for cron</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatStat(stats.missingArticleCount)}</h2>
+        <p>Missing article</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatStat(stats.missingMetaDescriptionCount)}</h2>
+        <p>Missing meta description</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatStat(stats.publishedTodayCount)}</h2>
+        <p>Published today</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatDate(stats.lastRunAt)}</h2>
+        <p>Last run time</p>
+      </div>
+    </div>
+
+    <section class="admin-list-page" aria-labelledby="cron-inactive-games-title">
+      <div class="admin-list-heading">
+        <div>
+          <h2 id="cron-inactive-games-title">Inactive games</h2>
+          <p>{total} inactive game{total === 1 ? '' : 's'} found</p>
+          <p>Cron Publish checks basic eligibility here, then rewrites Article and SEO Description during the run.</p>
+        </div>
+      </div>
+
+      <form class="admin-filter-bar" method="get" action="/admin/cron-publish">
+        <label>
+          <span>Search</span>
+          <input type="search" name="search" value={search} placeholder="Title or slug" />
+        </label>
+        <label>
+          <span>Category</span>
+          <select name="category">
+            <option value="">All categories</option>
+            {
+              categories.map((category) => (
+                <option value={category.slug} selected={category.slug === categorySlug}>
+                  {category.name}
+                </option>
+              ))
+            }
+          </select>
+        </label>
+        <label>
+          <span>Content status</span>
+          <select name="content_status">
+            <option value="all" selected={contentStatus === 'all'}>All</option>
+            <option value="ready" selected={contentStatus === 'ready'}>Eligible for cron</option>
+            <option value="missing_article" selected={contentStatus === 'missing_article'}>
+              Missing article
+            </option>
+            <option value="missing_meta" selected={contentStatus === 'missing_meta'}>
+              Missing meta
+            </option>
+          </select>
+        </label>
+        <button type="submit">Filter</button>
+        {
+          (search || categorySlug || contentStatus !== 'all') && (
+            <a class="admin-link-btn" href="/admin/cron-publish">Clear</a>
+          )
+        }
+      </form>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Thumbnail</th>
+              <th>Title</th>
+              <th>Slug</th>
+              <th>Category</th>
+              <th>Article</th>
+              <th>SEO Description</th>
+              <th>Created</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              games.length > 0 ? (
+                games.map((game) => (
+                  <tr>
+                    <td>
+                      <span class="admin-thumb">
+                        {game.thumbnail && <img src={game.thumbnail} alt="" loading="lazy" decoding="async" />}
+                      </span>
+                    </td>
+                    <td>{game.title}</td>
+                    <td><code>{game.slug}</code></td>
+                    <td>{game.categorySlug ?? '-'}</td>
+                    <td>
+                      <span class:list={['admin-status-badge', game.hasArticle ? 'is-ok' : 'is-danger']}>
+                        {game.hasArticle ? 'Existing' : 'Missing'}
+                      </span>
+                    </td>
+                    <td>
+                      <span class:list={['admin-status-badge', game.hasMetaDescription ? 'is-ok' : 'is-danger']}>
+                        {game.hasMetaDescription ? 'Existing' : 'Missing'}
+                      </span>
+                    </td>
+                    <td>{formatDate(game.createdAt)}</td>
+                    <td>
+                      <div class="admin-table-actions">
+                        <a href={`/admin/games/${game.id}/edit`}>Edit game</a>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colspan="8">No inactive games found.</td>
+                </tr>
+              )
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="pagination" aria-label="Cron Publish inactive games pagination">
+        {
+          page > 1 ? (
+            <a class="pagination-link" href={buildPageHref(page - 1)}>Previous</a>
+          ) : (
+            <span class="pagination-link pagination-link--disabled" aria-disabled="true">Previous</span>
+          )
+        }
+        <span class="pagination-current">Page {page}</span>
+        {
+          hasNext ? (
+            <a class="pagination-link" href={buildPageHref(page + 1)}>Next</a>
+          ) : (
+            <span class="pagination-link pagination-link--disabled" aria-disabled="true">Next</span>
+          )
+        }
+      </nav>
+    </section>
+
+    <section class="admin-list-page" aria-labelledby="cron-logs-title">
+      <div class="admin-list-heading">
+        <div>
+          <h2 id="cron-logs-title">Recent logs</h2>
+          <p>Latest Cron Publish activity.</p>
+        </div>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Game slug</th>
+              <th>Status</th>
+              <th>Step</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              logsResult.logs.length > 0 ? (
+                logsResult.logs.map((log) => (
+                  <tr>
+                    <td>{formatDate(log.createdAt)}</td>
+                    <td>{log.gameSlug ? <code>{log.gameSlug}</code> : '-'}</td>
+                    <td>
+                      <span class:list={[
+                        'admin-status-badge',
+                        log.status === 'success' ? 'is-ok' : log.status === 'error' ? 'is-danger' : 'is-muted',
+                      ]}>
+                        {log.status}
+                      </span>
+                    </td>
+                    <td>{log.step ?? '-'}</td>
+                    <td>{log.errorMessage ?? log.message ?? '-'}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colspan="5">No Cron Publish logs yet.</td>
+                </tr>
+              )
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</AdminLayout>
+
+<script is:inline>
+  (() => {
+    const form = document.querySelector('[data-cron-run-form]');
+    const button = document.querySelector('[data-cron-run-once]');
+    const message = document.querySelector('[data-cron-run-result]');
+
+    if (!(form instanceof HTMLFormElement)
+      || !(button instanceof HTMLButtonElement)
+      || !(message instanceof HTMLElement)) {
+      return;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const originalText = button.textContent || 'Run once now';
+      button.disabled = true;
+      button.textContent = 'Running...';
+      message.hidden = true;
+      message.className = 'admin-success';
+
+      try {
+        const response = await fetch('/api/admin/cron-publish-run', {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+          },
+          credentials: 'same-origin',
+        });
+        const result = await response.json().catch(() => ({}));
+
+        const summaryText = `Processed ${result.processed ?? 0}, Published ${result.published ?? 0}, Failed ${result.failed ?? 0}, Skipped ${result.skipped ?? 0}.`;
+
+        if (!response.ok || !result.ok || Number(result.failed ?? 0) > 0) {
+          message.className = 'admin-error';
+          message.textContent = result.message
+            ? `${summaryText} ${result.message}`
+            : 'Unable to run Cron Publish right now.';
+        } else {
+          message.textContent = summaryText;
+
+          if (result.message && result.message !== message.textContent) {
+            message.textContent += ` ${result.message}`;
+          }
+        }
+
+        message.hidden = false;
+      } catch {
+        message.className = 'admin-error';
+        message.textContent = 'Unable to run Cron Publish right now.';
+        message.hidden = false;
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    });
+  })();
+</script>

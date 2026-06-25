@@ -1,0 +1,104 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminDeactivateCategory,
+  adminListCategories,
+} from '../../lib/admin/categories-admin';
+
+export const prerender = false;
+
+let actionError = '';
+let actionSuccess = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const intent = String(formData.get('intent') ?? '');
+  const id = String(formData.get('id') ?? '');
+
+  if (intent === 'deactivate' && id) {
+    const result = await adminDeactivateCategory(id);
+
+    if (result.success) {
+      actionSuccess = 'Category deactivated.';
+    } else {
+      actionError = result.error ?? 'Unable to deactivate category.';
+    }
+  }
+}
+
+const { categories, error } = await adminListCategories();
+---
+
+<AdminLayout
+  title="Admin Categories | Free Game Zone"
+  description="Manage categories in the Free Game Zone admin area."
+>
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/">Dashboard</a>
+    <a class="admin-primary-btn" href="/admin/categories/new">Add Category</a>
+    <form method="post" action="/admin/">
+      <input type="hidden" name="intent" value="logout" />
+      <button class="admin-logout-btn" type="submit">Logout</button>
+    </form>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-categories-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-categories-title">Categories</h1>
+        <p>{categories.length} categor{categories.length === 1 ? 'y' : 'ies'} found</p>
+      </div>
+    </div>
+
+    {error && <p class="admin-error">{error}</p>}
+    {actionError && <p class="admin-error">{actionError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Slug</th>
+            <th>Icon</th>
+            <th>Sort</th>
+            <th>Active</th>
+            <th>SEO title</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            categories.length > 0 ? (
+              categories.map((category) => (
+                <tr>
+                  <td>{category.name}</td>
+                  <td><code>{category.slug}</code></td>
+                  <td>{category.icon ?? '-'}</td>
+                  <td>{category.sortOrder}</td>
+                  <td>{category.isActive ? 'Yes' : 'No'}</td>
+                  <td>{category.seoTitle ?? '-'}</td>
+                  <td>
+                    <div class="admin-table-actions">
+                      <a href={`/admin/categories/${category.id}/edit`}>Edit</a>
+                      <a href={`/category/${category.slug.endsWith('-games') ? category.slug : `${category.slug}-games`}/`}>View</a>
+                      <form method="post" action="/admin/categories">
+                        <input type="hidden" name="intent" value="deactivate" />
+                        <input type="hidden" name="id" value={category.id} />
+                        <button type="submit" disabled={!category.isActive}>Deactivate</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colspan="7">No categories found.</td>
+              </tr>
+            )
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</AdminLayout>

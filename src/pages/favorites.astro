@@ -1,0 +1,115 @@
+---
+import MainLayout from '../layouts/MainLayout.astro';
+---
+
+<MainLayout
+  title="Favorite Games | Free Game Zone"
+  description="View and manage the browser games you saved as favorites."
+  canonicalPath="/favorites"
+>
+  <div class="favorites-page">
+    <header class="favorites-page-header">
+      <h1>Favorite Games</h1>
+      <button class="clear-favorites-btn" type="button" data-clear-favorites>
+        Clear favorites
+      </button>
+    </header>
+
+    <div class="favorites-page-empty" data-favorites-page-empty hidden>No favorite games yet.</div>
+    <div class="favorites-page-grid" data-favorites-page-grid></div>
+  </div>
+</MainLayout>
+
+<script is:inline>
+  (() => {
+    const grid = document.querySelector('[data-favorites-page-grid]');
+    const empty = document.querySelector('[data-favorites-page-empty]');
+    const clearButton = document.querySelector('[data-clear-favorites]');
+
+    if (!grid || !empty || !clearButton) {
+      return;
+    }
+
+    const readFavoriteSlugs = () => {
+      try {
+        const value = JSON.parse(localStorage.getItem('favoriteGames') || '[]');
+        return Array.isArray(value) ? value.filter((slug) => typeof slug === 'string') : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const createCard = (game) => {
+      const link = document.createElement('a');
+      link.className = 'favorite-page-card';
+      link.href = `/game/${game.slug}/`;
+
+      const media = document.createElement('span');
+      media.className = 'favorite-page-card-media';
+      media.textContent = game.title.slice(0, 1).toUpperCase();
+
+      if (game.thumbnail) {
+        const image = document.createElement('img');
+        image.src = game.thumbnail;
+        image.alt = `${game.title} thumbnail`;
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        image.onerror = () => image.remove();
+        media.append(image);
+      }
+
+      const title = document.createElement('span');
+      title.className = 'favorite-page-card-title';
+      title.textContent = game.title;
+
+      link.append(media, title);
+      return link;
+    };
+
+    const fetchFavoriteGames = async (favoriteSlugs) => {
+      if (favoriteSlugs.length === 0) {
+        return [];
+      }
+
+      try {
+        const response = await fetch(
+          `/api/search.json?slugs=${encodeURIComponent(favoriteSlugs.slice(0, 200).join(','))}&limit=200`,
+        );
+
+        if (!response.ok) {
+          return [];
+        }
+
+        return await response.json();
+      } catch {
+        return [];
+      }
+    };
+
+    const renderFavorites = async () => {
+      const favoriteSlugs = readFavoriteSlugs();
+      const favoriteGames = await fetchFavoriteGames(favoriteSlugs);
+
+      grid.textContent = '';
+      empty.hidden = favoriteGames.length > 0;
+      clearButton.hidden = favoriteGames.length === 0;
+
+      favoriteGames.forEach((game) => {
+        grid.append(createCard(game));
+      });
+    };
+
+    clearButton.addEventListener('click', () => {
+      localStorage.removeItem('favoriteGames');
+      void renderFavorites();
+    });
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'favoriteGames') {
+        void renderFavorites();
+      }
+    });
+
+    void renderFavorites();
+  })();
+</script>

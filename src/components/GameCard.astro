@@ -1,0 +1,45 @@
+---
+import { getFallbackGradientClass, getFallbackIcon } from '../utils/gameFallback';
+import type { Game } from '../types/game';
+
+interface Props {
+  game: Game;
+  size?: 'small' | 'medium' | 'large';
+}
+
+const { game, size = 'medium' } = Astro.props;
+const fallbackGradientClass = getFallbackGradientClass(game.id);
+const fallbackIcon = getFallbackIcon(game.id);
+
+const badge = game.isNew
+  ? { label: 'New', tone: 'new' }
+  : game.isTrending
+    ? { label: 'Trending', tone: 'trending' }
+    : game.isFeatured
+      ? { label: 'Updated', tone: 'updated' }
+      : null;
+---
+
+<article class:list={['game-card', `game-card--${size}`]}>
+  <a class="game-card-link" href={`/game/${game.slug}/`} aria-label={`Play ${game.title}`}>
+    <div class="game-card-media">
+      <div class:list={['game-card-placeholder', fallbackGradientClass]} aria-hidden="true">
+        <span class="game-card-fallback-icon">{fallbackIcon}</span>
+        <span class="game-card-fallback-title">{game.title}</span>
+      </div>
+      {
+        game.thumbnail && (
+          <img
+            src={game.thumbnail}
+            alt={`${game.title} game thumbnail`}
+            loading="lazy"
+            decoding="async"
+            onerror="this.hidden = true"
+          />
+        )
+      }
+      {badge && <span class:list={['game-card-badge', `game-card-badge--${badge.tone}`]}>{badge.label}</span>}
+      <span class="game-card-title">{game.title}</span>
+    </div>
+  </a>
+</article>

@@ -1,0 +1,299 @@
+---
+import type {
+  AdminPromptTemplateData,
+  PromptTemplate,
+} from '../../lib/prompt-templates';
+
+interface Props {
+  mode: 'create' | 'edit';
+  values: AdminPromptTemplateData | PromptTemplate;
+  error?: string;
+}
+
+const { mode, values, error = '' } = Astro.props;
+const targetTypes = ['game', 'category'];
+const actions = [
+  'generate_meta_description',
+  'generate_article',
+  'generate_description',
+  'generate_seo_title',
+  'generate_short_description',
+];
+
+const field = (name: keyof AdminPromptTemplateData | keyof PromptTemplate) => {
+  const value = values[name as keyof typeof values];
+  return value === null || value === undefined ? '' : String(value);
+};
+
+const checked = (name: keyof AdminPromptTemplateData | keyof PromptTemplate) =>
+  Boolean(values[name as keyof typeof values]);
+
+const variables = Array.isArray(values.variables)
+  ? values.variables.join(', ')
+  : '';
+
+const gameSampleVariables = `{
+  "title": "Poxel io",
+  "category": "Io Games",
+  "description": "Play Poxel io online for free.",
+  "instructions": "Use keyboard and mouse to play.",
+  "tags": ["io", "shooting", "browser game"]
+}`;
+
+const categorySampleVariables = `{
+  "categoryName": "Shooting Games",
+  "categorySlug": "shooting-games",
+  "currentDescription": "Play free shooting games online."
+}`;
+
+const defaultSampleVariables = field('targetType') === 'category'
+  ? categorySampleVariables
+  : gameSampleVariables;
+---
+
+<form class="admin-game-form admin-prompt-template-form" method="post">
+  {error && <p class="admin-error">{error}</p>}
+
+  <section class="admin-settings-section" aria-labelledby="prompt-template-basic-title">
+    <div class="admin-settings-section-heading">
+      <h2 id="prompt-template-basic-title">Template details</h2>
+      <p>Use lowercase template keys and choose where this prompt is used.</p>
+    </div>
+
+    <div class="admin-form-grid">
+      <label>
+        <span>Name *</span>
+        <input type="text" name="name" value={field('name')} required />
+      </label>
+
+      <label>
+        <span>Template key *</span>
+        <input
+          type="text"
+          name="templateKey"
+          value={field('templateKey')}
+          pattern="[a-z0-9_]+"
+          placeholder="game_seo_description"
+          required
+        />
+        <small class="admin-field-note">Use lowercase letters, numbers, and underscores only.</small>
+      </label>
+
+      <label>
+        <span>Target type *</span>
+        <select name="targetType" required>
+          <option value="">Choose target</option>
+          {
+            targetTypes.map((targetType) => (
+              <option value={targetType} selected={field('targetType') === targetType}>
+                {targetType}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>Action *</span>
+        <select name="action" required>
+          <option value="">Choose action</option>
+          {
+            actions.map((action) => (
+              <option value={action} selected={field('action') === action}>
+                {action}
+              </option>
+            ))
+          }
+        </select>
+      </label>
+
+      <label class="admin-form-wide">
+        <span>Description</span>
+        <textarea name="description" rows="3">{field('description')}</textarea>
+      </label>
+
+      <label class="admin-form-wide">
+        <span>Variables</span>
+        <textarea name="variables" rows="2" placeholder="title, category, description, tags">{variables}</textarea>
+        <small class="admin-field-note">Separate variables with commas or new lines. They are saved as a JSON array.</small>
+      </label>
+    </div>
+  </section>
+
+  <section class="admin-settings-section" aria-labelledby="prompt-template-prompts-title">
+    <div class="admin-settings-section-heading">
+      <h2 id="prompt-template-prompts-title">Prompts</h2>
+      <p>Use <code>{'{{variableName}}'}</code> placeholders inside prompts.</p>
+    </div>
+
+    <p class="admin-warning">
+      Example: Game title: {'{{title}}'} · Category: {'{{category}}'}
+    </p>
+
+    <div class="admin-form-grid">
+      <label class="admin-form-wide">
+        <span>System prompt</span>
+        <textarea name="systemPrompt" rows="5" data-count-source="system-prompt">{field('systemPrompt')}</textarea>
+        <small class="admin-field-note" data-count-target="system-prompt">0 characters · 0 lines</small>
+      </label>
+
+      <label class="admin-form-wide">
+        <span>User prompt *</span>
+        <textarea name="userPrompt" rows="10" required data-count-source="user-prompt">{field('userPrompt')}</textarea>
+        <small class="admin-field-note" data-count-target="user-prompt">0 characters · 0 lines</small>
+      </label>
+    </div>
+  </section>
+
+  <section class="admin-settings-section" aria-labelledby="prompt-template-preview-title">
+    <div class="admin-settings-section-heading">
+      <h2 id="prompt-template-preview-title">Preview</h2>
+      <p>Render placeholders with sample data before saving or testing with an AI provider.</p>
+    </div>
+
+    <div class="admin-form-grid">
+      <label class="admin-form-wide">
+        <span>Sample variables JSON</span>
+        <textarea name="sampleVariables" rows="9" data-preview-sample>{defaultSampleVariables}</textarea>
+        <small class="admin-field-note">Use valid JSON. Missing variables render as empty strings.</small>
+      </label>
+    </div>
+
+    <div class="admin-form-actions">
+      <button type="button" data-preview-prompt>Preview Prompt</button>
+    </div>
+
+    <div class="admin-prompt-preview-output" data-preview-output hidden>
+      <div>
+        <strong>Rendered system prompt</strong>
+        <pre data-preview-system></pre>
+      </div>
+      <div>
+        <strong>Rendered user prompt</strong>
+        <pre data-preview-user></pre>
+      </div>
+    </div>
+
+    <p class="admin-error" data-preview-error hidden></p>
+  </section>
+
+  <div class="admin-checkbox-grid">
+    <label><input type="checkbox" name="isActive" checked={checked('isActive')} /> Active</label>
+  </div>
+
+  <div class="admin-form-actions">
+    <button type="submit" name="intent" value="save">Save Template</button>
+    {mode === 'edit' && <button class="admin-danger-btn" type="submit" name="intent" value="deactivate">Deactivate Template</button>}
+    <a class="admin-link-btn" href="/admin/prompt-templates">Cancel</a>
+  </div>
+</form>
+
+<script>
+  const countSources = document.querySelectorAll('[data-count-source]');
+  const targetTypeSelect = document.querySelector('[name="targetType"]');
+  const sampleTextarea = document.querySelector('[data-preview-sample]');
+  const previewButton = document.querySelector('[data-preview-prompt]');
+  const previewOutput = document.querySelector('[data-preview-output]');
+  const previewSystem = document.querySelector('[data-preview-system]');
+  const previewUser = document.querySelector('[data-preview-user]');
+  const previewError = document.querySelector('[data-preview-error]');
+  const systemPromptField = document.querySelector('[name="systemPrompt"]');
+  const userPromptField = document.querySelector('[name="userPrompt"]');
+  const gameSampleVariables = {
+    title: 'Poxel io',
+    category: 'Io Games',
+    description: 'Play Poxel io online for free.',
+    instructions: 'Use keyboard and mouse to play.',
+    tags: ['io', 'shooting', 'browser game'],
+  };
+  const categorySampleVariables = {
+    categoryName: 'Shooting Games',
+    categorySlug: 'shooting-games',
+    currentDescription: 'Play free shooting games online.',
+  };
+
+  const updateCount = (source) => {
+    const key = source.getAttribute('data-count-source');
+    const target = key ? document.querySelector(`[data-count-target="${key}"]`) : null;
+
+    if (!target) return;
+
+    const value = source.value || '';
+    const lines = value ? value.split(/\r\n|\r|\n/).length : 0;
+    target.textContent = `${value.length} characters · ${lines} lines`;
+  };
+
+  countSources.forEach((source) => {
+    updateCount(source);
+    source.addEventListener('input', () => updateCount(source));
+  });
+
+  const stringifyPromptValue = (value) => {
+    if (Array.isArray(value)) {
+      return value.join(', ');
+    }
+
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    return String(value);
+  };
+
+  const renderPrompt = (content, variables) =>
+    String(content || '').replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) =>
+      stringifyPromptValue(variables[key]),
+    );
+
+  const setPreviewError = (message) => {
+    if (!previewError) return;
+
+    previewError.textContent = message;
+    previewError.hidden = !message;
+  };
+
+  const setDefaultSample = () => {
+    if (!(sampleTextarea instanceof HTMLTextAreaElement) || !(targetTypeSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    const currentValue = sampleTextarea.value.trim();
+    const gameSampleText = JSON.stringify(gameSampleVariables, null, 2);
+    const categorySampleText = JSON.stringify(categorySampleVariables, null, 2);
+    const isUntouchedSample = currentValue === gameSampleText || currentValue === categorySampleText;
+
+    if (!currentValue || isUntouchedSample) {
+      sampleTextarea.value = targetTypeSelect.value === 'category' ? categorySampleText : gameSampleText;
+    }
+  };
+
+  targetTypeSelect?.addEventListener('change', setDefaultSample);
+
+  previewButton?.addEventListener('click', () => {
+    if (
+      !(sampleTextarea instanceof HTMLTextAreaElement) ||
+      !(systemPromptField instanceof HTMLTextAreaElement) ||
+      !(userPromptField instanceof HTMLTextAreaElement) ||
+      !previewOutput ||
+      !previewSystem ||
+      !previewUser
+    ) {
+      return;
+    }
+
+    let variables = {};
+
+    try {
+      variables = JSON.parse(sampleTextarea.value || '{}');
+    } catch {
+      previewOutput.hidden = true;
+      setPreviewError('Sample variables must be valid JSON.');
+      return;
+    }
+
+    setPreviewError('');
+    previewSystem.textContent = renderPrompt(systemPromptField.value, variables) || 'No system prompt.';
+    previewUser.textContent = renderPrompt(userPromptField.value, variables) || 'No user prompt.';
+    previewOutput.hidden = false;
+  });
+</script>

@@ -1,0 +1,30 @@
+---
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  image?: string;
+}
+
+interface Props {
+  categories: Category[];
+}
+
+const { categories } = Astro.props;
+---
+
+<aside class="category-rail" aria-label="Game categories">
+  <a class="category-link active" href="/">
+    <span class="category-icon">TOP</span>
+    <span>Popular</span>
+  </a>
+  {
+    categories.map((category) => (
+      <a class="category-link" href={`/category/${category.slug}-games/`}>
+        <span class="category-icon" aria-hidden="true">{category.icon}</span>
+        <span>{category.name}</span>
+      </a>
+    ))
+  }
+</aside>

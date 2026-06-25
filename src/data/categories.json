@@ -1,0 +1,62 @@
+[
+  {
+    "id": "cat-clicker",
+    "name": "Clicker",
+    "slug": "clicker",
+    "icon": "CLK"
+  },
+  {
+    "id": "cat-io",
+    "name": "Io",
+    "slug": "io",
+    "icon": "IO"
+  },
+  {
+    "id": "cat-adventure",
+    "name": "Adventure",
+    "slug": "adventure",
+    "icon": "ADV"
+  },
+  {
+    "id": "cat-2-player",
+    "name": "2 Player",
+    "slug": "2-player",
+    "icon": "2P"
+  },
+  {
+    "id": "cat-shooting",
+    "name": "Shooting",
+    "slug": "shooting",
+    "icon": "SH"
+  },
+  {
+    "id": "cat-sports",
+    "name": "Sports",
+    "slug": "sports",
+    "icon": "SP"
+  },
+  {
+    "id": "cat-car",
+    "name": "Car",
+    "slug": "car",
+    "icon": "CAR"
+  },
+  {
+    "id": "cat-puzzle",
+    "name": "Puzzle",
+    "slug": "puzzle",
+    "icon": "PZ"
+  },
+  {
+    "id": "cat-casual",
+    "name": "Casual",
+    "slug": "casual",
+    "icon": "FUN"
+  },
+  {
+    "id": "cat-kids",
+    "name": "Kids",
+    "slug": "kids",
+    "icon": "KID"
+  }
+]

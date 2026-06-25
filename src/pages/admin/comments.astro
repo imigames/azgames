@@ -1,0 +1,155 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminDeleteComment,
+  adminListComments,
+  adminUpdateCommentStatus,
+} from '../../lib/comments';
+
+export const prerender = false;
+
+const allowedStatuses = new Set(['pending', 'approved', 'spam', 'deleted']);
+const requestedStatus = Astro.url.searchParams.get('status')?.trim() ?? '';
+const status = allowedStatuses.has(requestedStatus) ? requestedStatus : '';
+let actionError = '';
+let actionSuccess = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const id = String(formData.get('id') ?? '');
+  const action = String(formData.get('action') ?? '');
+  const nextStatus = String(formData.get('status') ?? '');
+
+  if (id && action === 'delete') {
+    const result = await adminDeleteComment(id);
+
+    if (result.success) {
+      actionSuccess = 'Comment marked as deleted.';
+    } else {
+      actionError = result.error ?? 'Unable to delete comment.';
+    }
+  } else if (id && allowedStatuses.has(nextStatus)) {
+    const result = await adminUpdateCommentStatus(id, nextStatus);
+
+    if (result.success) {
+      actionSuccess = `Comment marked as ${nextStatus}.`;
+    } else {
+      actionError = result.error ?? 'Unable to update comment.';
+    }
+  }
+}
+
+const comments = await adminListComments({ status, page: 1, limit: 100 });
+const formatDate = (value: string | null) => {
+  if (!value) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+};
+
+const getActionUrl = () => Astro.url.pathname + Astro.url.search;
+const previewComment = (value: string) => (value.length > 180 ? `${value.slice(0, 180)}...` : value);
+---
+
+<AdminLayout title="Admin Comments | Free Game Zone" description="Moderate player game comments.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/">Dashboard</a>
+    <form method="post" action="/admin/">
+      <input type="hidden" name="intent" value="logout" />
+      <button class="admin-logout-btn" type="submit">Logout</button>
+    </form>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-comments-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-comments-title">Comments</h1>
+        <p>{comments.length} comment{comments.length === 1 ? '' : 's'} found</p>
+      </div>
+    </div>
+
+    <form class="admin-filter-bar" method="get" action="/admin/comments">
+      <label>
+        <span>Status</span>
+        <select name="status">
+          <option value="" selected={status === ''}>All comments</option>
+          <option value="pending" selected={status === 'pending'}>Pending</option>
+          <option value="approved" selected={status === 'approved'}>Approved</option>
+          <option value="spam" selected={status === 'spam'}>Spam</option>
+          <option value="deleted" selected={status === 'deleted'}>Deleted</option>
+        </select>
+      </label>
+      <button type="submit">Filter</button>
+      {status && <a class="admin-link-btn" href="/admin/comments">Clear</a>}
+    </form>
+
+    {actionError && <p class="admin-error">{actionError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Game slug</th>
+            <th>Name</th>
+            <th>Comment</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            comments.length > 0 ? (
+              comments.map((comment) => (
+                <tr>
+                  <td>
+                    <a href={`/game/${comment.gameSlug}/`}>
+                      <code>{comment.gameSlug}</code>
+                    </a>
+                  </td>
+                  <td>{comment.name}</td>
+                  <td>{previewComment(comment.comment)}</td>
+                  <td>{comment.status}</td>
+                  <td>{formatDate(comment.createdAt)}</td>
+                  <td>
+                    <div class="admin-table-actions">
+                      <form method="post" action={getActionUrl()}>
+                        <input type="hidden" name="id" value={comment.id} />
+                        <input type="hidden" name="status" value="approved" />
+                        <button type="submit" disabled={comment.status === 'approved'}>Approve</button>
+                      </form>
+                      <form method="post" action={getActionUrl()}>
+                        <input type="hidden" name="id" value={comment.id} />
+                        <input type="hidden" name="status" value="pending" />
+                        <button type="submit" disabled={comment.status === 'pending'}>Pending</button>
+                      </form>
+                      <form method="post" action={getActionUrl()}>
+                        <input type="hidden" name="id" value={comment.id} />
+                        <input type="hidden" name="status" value="spam" />
+                        <button type="submit" disabled={comment.status === 'spam'}>Spam</button>
+                      </form>
+                      <form method="post" action={getActionUrl()}>
+                        <input type="hidden" name="id" value={comment.id} />
+                        <input type="hidden" name="action" value="delete" />
+                        <button type="submit" disabled={comment.status === 'deleted'}>Delete</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colspan="6">No comments found.</td>
+              </tr>
+            )
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</AdminLayout>

@@ -1,0 +1,105 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import {
+  adminGetContactMessageById,
+  adminUpdateContactMessageNote,
+  adminUpdateContactMessageStatus,
+} from '../../../lib/contact';
+
+export const prerender = false;
+
+const id = Astro.params.id ?? '';
+const allowedStatuses = new Set(['new', 'read', 'replied', 'archived', 'spam']);
+let actionError = '';
+let actionSuccess = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const nextStatus = String(formData.get('status') ?? '');
+  const adminNote = String(formData.get('adminNote') ?? '');
+
+  if (allowedStatuses.has(nextStatus)) {
+    const result = await adminUpdateContactMessageStatus(id, nextStatus);
+    actionSuccess = result.success ? `Message marked as ${nextStatus}.` : '';
+    actionError = result.success ? '' : result.error ?? 'Unable to update message.';
+  } else if (formData.has('adminNote')) {
+    const result = await adminUpdateContactMessageNote(id, adminNote);
+    actionSuccess = result.success ? 'Admin note saved.' : '';
+    actionError = result.success ? '' : result.error ?? 'Unable to save note.';
+  }
+}
+
+const message = await adminGetContactMessageById(id);
+
+if (!message) {
+  return Astro.redirect('/admin/contact-us');
+}
+
+if (Astro.request.method === 'GET' && message.status === 'new') {
+  await adminUpdateContactMessageStatus(id, 'read');
+  message.status = 'read';
+}
+
+const formatDate = (value: string | null) => {
+  if (!value) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+};
+---
+
+<AdminLayout title="View Contact Message | Free Game Zone" description="View a Contact Us message.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/contact-us">Contact messages</a>
+    <a class="admin-link-btn" href="/admin/">Dashboard</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="contact-message-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="contact-message-title">Contact message</h1>
+        <p>{message.email}</p>
+      </div>
+    </div>
+
+    {actionError && <p class="admin-error">{actionError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+
+    <div class="admin-form-card">
+      <p><strong>Name:</strong> {message.name}</p>
+      <p><strong>Email:</strong> <a href={`mailto:${message.email}`}>{message.email}</a></p>
+      <p><strong>Subject:</strong> {message.subject ?? '-'}</p>
+      <p><strong>Status:</strong> {message.status}</p>
+      <p><strong>Created:</strong> {formatDate(message.createdAt)}</p>
+      <p><strong>User agent:</strong> {message.userAgent ?? '-'}</p>
+      <p><strong>Message:</strong></p>
+      <p>{message.message}</p>
+    </div>
+
+    <div class="admin-table-actions" aria-label="Message actions">
+      {[
+        { status: 'read', label: 'Mark as read' },
+        { status: 'replied', label: 'Mark as replied' },
+        { status: 'archived', label: 'Archive' },
+        { status: 'spam', label: 'Mark spam' },
+      ].map((action) => (
+        <form method="post" action={Astro.url.pathname}>
+          <input type="hidden" name="status" value={action.status} />
+          <button type="submit" disabled={message.status === action.status}>{action.label}</button>
+        </form>
+      ))}
+    </div>
+
+    <form class="admin-form-card" method="post" action={Astro.url.pathname}>
+      <label>
+        <span>Admin note</span>
+        <textarea name="adminNote" rows="5">{message.adminNote ?? ''}</textarea>
+      </label>
+      <button class="admin-primary-btn" type="submit">Save note</button>
+    </form>
+  </section>
+</AdminLayout>

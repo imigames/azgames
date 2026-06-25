@@ -1,0 +1,49 @@
+---
+import LegalPage from '../components/LegalPage.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { sanitizeSiteContentHtml } from '../lib/html-sanitize';
+import { getPublicSettings } from '../lib/settings';
+
+const settings = await getPublicSettings();
+const customContent = settings.aboutPageContent.trim()
+  ? sanitizeSiteContentHtml(settings.aboutPageContent)
+  : '';
+---
+
+<MainLayout
+  title="About us | Free Game Zone"
+  description="Learn about Free Game Zone, a browser games website built for fast, free, and easy play."
+  canonicalPath="/about-us"
+>
+  <LegalPage title="About us">
+    {
+      customContent ? (
+        <div class="game-article-content" set:html={customContent} />
+      ) : (
+        <>
+          <section>
+            <h2>About Free Game Zone</h2>
+            <p>Free Game Zone is a browser games website available at freegamezone.io. It is made for quick play, simple browsing, and easy discovery, with organized pages for arcade, action, puzzle, car, sports, clicker, casual, and io games.</p>
+            <p>Many games on the site may be created by third-party developers or supplied through external providers. We do not claim ownership of third-party games, artwork, characters, trademarks, embedded content, or related materials.</p>
+          </section>
+          <section>
+            <h2>What we offer</h2>
+            <p>We offer categorized game listings, searchable game pages, favorites, likes, and simple information that helps players understand what a game is before they start. Our pages are designed to work across common desktop and mobile browsers with a compact arcade-style layout.</p>
+          </section>
+          <section>
+            <h2>Why players use our website</h2>
+            <p>Players use Free Game Zone because the layout is compact, visual, and easy to scan. The website is built around direct access, clear categories, and a familiar arcade-style experience where players can move from one title to another with little friction.</p>
+          </section>
+          <section>
+            <h2>Our goal</h2>
+            <p>Our goal is to maintain a useful browser game library that is simple for players and respectful toward creators, publishers, and content providers. We regularly improve organization, performance, and moderation tools as freegamezone.io grows.</p>
+          </section>
+          <section>
+            <h2>Contact information note</h2>
+            <p>For questions, feedback, copyright concerns, or game removal requests, please use the <a href="/contact-us">Contact us</a> page and include the page URL or game title involved.</p>
+          </section>
+        </>
+      )
+    }
+  </LegalPage>
+</MainLayout>

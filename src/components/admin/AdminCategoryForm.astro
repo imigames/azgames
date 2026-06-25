@@ -1,0 +1,68 @@
+---
+import type {
+  AdminCategory,
+  AdminCategoryFormData,
+} from '../../lib/admin/categories-admin';
+
+interface Props {
+  mode: 'create' | 'edit';
+  values: AdminCategoryFormData | AdminCategory;
+  error?: string;
+}
+
+const { mode, values, error = '' } = Astro.props;
+const field = (name: keyof AdminCategoryFormData | keyof AdminCategory) => {
+  const value = values[name as keyof typeof values];
+  return value === null || value === undefined ? '' : String(value);
+};
+const checked = (name: keyof AdminCategoryFormData | keyof AdminCategory) =>
+  Boolean(values[name as keyof typeof values]);
+---
+
+<form class="admin-game-form" method="post">
+  {error && <p class="admin-error">{error}</p>}
+
+  <div class="admin-form-grid">
+    <label>
+      <span>Name *</span>
+      <input type="text" name="name" value={field('name')} required />
+    </label>
+    <label>
+      <span>Slug *</span>
+      <input type="text" name="slug" value={field('slug')} placeholder="auto-generated from name" />
+    </label>
+    <label>
+      <span>Icon</span>
+      <input type="text" name="icon" value={field('icon')} />
+    </label>
+    <label>
+      <span>Sort order</span>
+      <input type="number" name="sortOrder" step="1" value={field('sortOrder') || '0'} />
+    </label>
+    <label class="admin-form-wide">
+      <span>Image</span>
+      <input type="url" name="image" value={field('image')} />
+    </label>
+    <label>
+      <span>SEO title</span>
+      <input type="text" name="seoTitle" value={field('seoTitle')} />
+    </label>
+    <label>
+      <span>SEO description</span>
+      <input type="text" name="seoDescription" value={field('seoDescription')} />
+    </label>
+    <label class="admin-form-wide">
+      <span>Description</span>
+      <textarea name="description" rows="5">{field('description')}</textarea>
+    </label>
+  </div>
+
+  <div class="admin-checkbox-grid">
+    <label><input type="checkbox" name="isActive" checked={checked('isActive')} /> Active</label>
+  </div>
+
+  <div class="admin-form-actions">
+    <button type="submit">{mode === 'create' ? 'Create Category' : 'Save Changes'}</button>
+    <a class="admin-link-btn" href="/admin/categories">Cancel</a>
+  </div>
+</form>

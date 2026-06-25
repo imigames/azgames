@@ -1,0 +1,21 @@
+---
+import GameListingPage from '../components/GameListingPage.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { getGamesByFlag } from '../lib/games';
+
+const limit = 60;
+const requestedPage = Number(Astro.url.searchParams.get('page') ?? '1');
+const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+const gamesPage = await getGamesByFlag('isHot', { page, limit: limit + 1 });
+const hasNext = gamesPage.length > limit;
+const games = gamesPage.slice(0, limit);
+const basePath = '/hot-games/';
+---
+
+<MainLayout
+  title="Hot Games | Free Online Browser Games | Free Game Zone"
+  description="Play hot free browser games selected for quick browser sessions."
+  canonicalPath={page > 1 ? `${basePath.replace(/\/$/, '')}?page=${page}` : basePath.replace(/\/$/, '')}
+>
+  <GameListingPage title="Hot Games" games={games} page={page} hasNext={hasNext} basePath={basePath} />
+</MainLayout>

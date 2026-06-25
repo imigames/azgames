@@ -1,0 +1,85 @@
+---
+import AdminGameForm from '../../../components/admin/AdminGameForm.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import {
+  adminCreateGame,
+  adminListGameCategories,
+  type AdminGameFormData,
+} from '../../../lib/admin/games-admin';
+
+export const prerender = false;
+
+const emptyGame: AdminGameFormData = {
+  title: '',
+  slug: '',
+  categorySlug: '',
+  thumbnail: '',
+  iframeUrl: '',
+  shortDescription: '',
+  description: '',
+  instructions: '',
+  rating: 4.5,
+  plays: 0,
+  isNew: false,
+  isTrending: false,
+  isHot: false,
+  isPopular: false,
+  isFeatured: false,
+  isActive: true,
+  seoTitle: '',
+  seoDescription: '',
+};
+
+const toGameFormData = (formData: FormData): AdminGameFormData => ({
+  title: String(formData.get('title') ?? ''),
+  slug: String(formData.get('slug') ?? ''),
+  categorySlug: String(formData.get('categorySlug') ?? ''),
+  thumbnail: String(formData.get('thumbnail') ?? ''),
+  iframeUrl: String(formData.get('iframeUrl') ?? ''),
+  shortDescription: '',
+  description: String(formData.get('description') ?? ''),
+  instructions: '',
+  rating: Number(formData.get('rating') ?? 4.5),
+  plays: Number(formData.get('plays') ?? 0),
+  isNew: formData.has('isNew'),
+  isTrending: formData.has('isTrending'),
+  isHot: formData.has('isHot'),
+  isPopular: formData.has('isPopular'),
+  isFeatured: formData.has('isFeatured'),
+  isActive: formData.has('isActive'),
+  seoTitle: String(formData.get('seoTitle') ?? ''),
+  seoDescription: String(formData.get('seoDescription') ?? ''),
+});
+
+let values = emptyGame;
+let error = '';
+
+if (Astro.request.method === 'POST') {
+  values = toGameFormData(await Astro.request.formData());
+  const result = await adminCreateGame(values);
+
+  if (result.success) {
+    return Astro.redirect('/admin/games');
+  }
+
+  error = result.error ?? 'Unable to create game.';
+}
+
+const categories = await adminListGameCategories();
+---
+
+<AdminLayout title="Add New Game | Free Game Zone" description="Create a new game.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/games">Games</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-new-game-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-new-game-title">Add New Game</h1>
+        <p>Create a browser game record.</p>
+      </div>
+    </div>
+    <AdminGameForm mode="create" categories={categories} values={values} error={error} />
+  </section>
+</AdminLayout>

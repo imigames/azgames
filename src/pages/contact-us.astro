@@ -1,0 +1,154 @@
+---
+import LegalPage from '../components/LegalPage.astro';
+import MainLayout from '../layouts/MainLayout.astro';
+import { sanitizeSiteContentHtml } from '../lib/html-sanitize';
+import { getPublicSettings } from '../lib/settings';
+
+const settings = await getPublicSettings();
+const customContent = settings.contactPageContent.trim()
+  ? sanitizeSiteContentHtml(settings.contactPageContent)
+  : '';
+---
+
+<MainLayout
+  title="Contact us | Free Game Zone"
+  description="Contact Free Game Zone for feedback, game issues, copyright requests, and business inquiries."
+  canonicalPath="/contact-us"
+>
+  <LegalPage title="Contact us">
+    {
+      customContent ? (
+        <div class="game-article-content" set:html={customContent} />
+      ) : (
+        <>
+          <section>
+            <h2>Contact us</h2>
+            <p>Use this page to contact Free Game Zone about freegamezone.io feedback, game issues, copyright or removal requests, business inquiries, and general questions.</p>
+          </section>
+          <section>
+            <h2>General questions</h2>
+            <p>For general questions or feedback, include a short subject and mention the page or feature you are asking about if it helps explain your message.</p>
+          </section>
+          <section>
+            <h2>Game issues</h2>
+            <p>If a game does not load, opens the wrong content, or appears outdated, include the game title, the freegamezone.io page URL, and a short description of what happened.</p>
+          </section>
+          <section>
+            <h2>Copyright or legal requests</h2>
+            <p>For copyright issues, provider concerns, or game removal requests, include accurate contact details, the exact page URL involved, and enough context for us to review the request.</p>
+          </section>
+          <section>
+            <h2>Business inquiries</h2>
+            <p>For partnerships, provider updates, or business questions, describe the opportunity and the best way to follow up.</p>
+          </section>
+        </>
+      )
+    }
+    <form class="legal-contact-form" data-contact-form>
+      <label>
+        <span>Name</span>
+        <input type="text" name="name" required />
+      </label>
+      <label>
+        <span>Email</span>
+        <input type="email" name="email" required />
+      </label>
+      <label>
+        <span>Subject</span>
+        <input type="text" name="subject" required />
+      </label>
+      <label>
+        <span>Message</span>
+        <textarea name="message" rows="6" required></textarea>
+      </label>
+      <input type="text" name="website" autocomplete="off" tabindex="-1" hidden />
+      <p class="legal-form-success" data-contact-success hidden>Thanks! Your message has been sent.</p>
+      <p class="legal-form-error" data-contact-error hidden>Name, email, and message are required.</p>
+      <button type="submit" data-contact-submit>Submit</button>
+    </form>
+  </LegalPage>
+</MainLayout>
+
+<script is:inline>
+  (() => {
+    const form = document.querySelector('[data-contact-form]');
+    const success = document.querySelector('[data-contact-success]');
+    const error = document.querySelector('[data-contact-error]');
+    const submitButton = document.querySelector('[data-contact-submit]');
+
+    if (!form) {
+      return;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(form);
+      const payload = {
+        name: String(formData.get('name') || '').trim(),
+        email: String(formData.get('email') || '').trim(),
+        subject: String(formData.get('subject') || '').trim(),
+        message: String(formData.get('message') || '').trim(),
+        website: String(formData.get('website') || '').trim(),
+      };
+
+      if (!payload.name || !payload.email || !payload.message) {
+        if (success) {
+          success.hidden = true;
+        }
+
+        if (error) {
+          error.textContent = 'Name, email, and message are required.';
+          error.hidden = false;
+        }
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = 'Sending...';
+      }
+
+      try {
+        const response = await fetch('/api/contact-message', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok || !result.ok) {
+          throw new Error(result.message || 'Unable to send your message.');
+        }
+
+        form.reset();
+
+        if (success) {
+          success.textContent = result.message || 'Thanks! Your message has been sent.';
+          success.hidden = false;
+        }
+
+        if (error) {
+          error.hidden = true;
+        }
+      } catch (submitError) {
+        if (success) {
+          success.hidden = true;
+        }
+
+        if (error) {
+          error.textContent = submitError instanceof Error
+            ? submitError.message
+            : 'Unable to send your message.';
+          error.hidden = false;
+        }
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Submit';
+        }
+      }
+    });
+  })();
+</script>

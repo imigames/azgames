@@ -1,0 +1,516 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { generateAiText } from '../../../lib/ai-client';
+import { adminCreateGenerationLog, adminListAiProviders } from '../../../lib/ai-providers';
+import {
+  adminGetPromptTemplateByKey,
+  renderPromptTemplate,
+} from '../../../lib/prompt-templates';
+import { supabaseAdmin } from '../../../lib/supabase';
+
+export const prerender = false;
+
+type BulkTarget = 'games_missing_seo_description' | 'games_missing_description' | 'categories_missing_description';
+
+type Candidate = {
+  id: string;
+  title: string;
+  slug: string;
+  categorySlug?: string | null;
+  categoryName?: string | null;
+  shortDescription?: string | null;
+  description?: string | null;
+  instructions?: string | null;
+};
+
+type BulkResult = {
+  id: string;
+  title: string;
+  slug: string;
+  status: 'updated' | 'error';
+  text?: string;
+  error?: string;
+};
+
+const DEFAULT_LIMIT = 10;
+const MAX_LIMIT = 50;
+const BATCH_SIZE = 5;
+
+const targetOptions: Array<{ value: BulkTarget; label: string; field: 'seo_description' | 'description' }> = [
+  {
+    value: 'games_missing_seo_description',
+    label: 'Games missing seo_description',
+    field: 'seo_description',
+  },
+  {
+    value: 'games_missing_description',
+    label: 'Games missing description',
+    field: 'description',
+  },
+  {
+    value: 'categories_missing_description',
+    label: 'Categories missing description',
+    field: 'description',
+  },
+];
+
+const isBulkTarget = (value: string): value is BulkTarget =>
+  targetOptions.some((option) => option.value === value);
+
+const normalizeLimit = (value: string | null) => {
+  const parsed = Number(value ?? DEFAULT_LIMIT);
+  if (!Number.isFinite(parsed)) return DEFAULT_LIMIT;
+  return Math.min(MAX_LIMIT, Math.max(1, Math.trunc(parsed)));
+};
+
+const requestedTarget = Astro.request.method === 'POST'
+  ? ''
+  : Astro.url.searchParams.get('target')?.trim() ?? '';
+let target: BulkTarget = isBulkTarget(requestedTarget)
+  ? requestedTarget
+  : 'games_missing_seo_description';
+let limit = normalizeLimit(Astro.url.searchParams.get('limit'));
+let providerKey = Astro.url.searchParams.get('provider')?.trim() ?? '';
+let model = Astro.url.searchParams.get('model')?.trim() ?? '';
+let error = '';
+let success = '';
+let candidates: Candidate[] = [];
+let results: BulkResult[] = [];
+const promptTemplateError = 'Prompt template is missing or inactive. Please check Prompt Templates.';
+const formatPromptForLog = (systemPrompt: string, userPrompt: string) =>
+  systemPrompt ? `System prompt:\n${systemPrompt}\n\nUser prompt:\n${userPrompt}` : userPrompt;
+
+const providersResult = await adminListAiProviders();
+const enabledProviders = providersResult.providers.filter((provider) => provider.isEnabled);
+const defaultProvider =
+  enabledProviders.find((provider) => provider.isDefault) ?? enabledProviders[0] ?? null;
+
+if (!providerKey && defaultProvider) {
+  providerKey = defaultProvider.providerKey;
+}
+
+if (!model && providerKey) {
+  model = providersResult.providers.find((provider) => provider.providerKey === providerKey)?.defaultModel ?? '';
+}
+
+const targetOption = () => targetOptions.find((option) => option.value === target) ?? targetOptions[0];
+
+const fetchCandidates = async (selectedTarget: BulkTarget, selectedLimit: number): Promise<Candidate[]> => {
+  if (!supabaseAdmin) {
+    error = 'Supabase admin client is not configured.';
+    return [];
+  }
+
+  if (selectedTarget === 'categories_missing_description') {
+    const { data, error: queryError } = await supabaseAdmin
+      .from('categories')
+      .select('id,name,slug,description')
+      .eq('is_active', true)
+      .or('description.is.null,description.eq.')
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+      .limit(selectedLimit);
+
+    if (queryError) {
+      error = queryError.message;
+      return [];
+    }
+
+    return (data ?? []).map((category) => ({
+      id: String(category.id),
+      title: String(category.name),
+      slug: String(category.slug),
+      description: category.description,
+    }));
+  }
+
+  const missingField = selectedTarget === 'games_missing_seo_description' ? 'seo_description' : 'description';
+  const { data, error: queryError } = await supabaseAdmin
+    .from('games')
+    .select('id,title,slug,category_slug,short_description,description,instructions')
+    .eq('is_active', true)
+    .or(`${missingField}.is.null,${missingField}.eq.`)
+    .order('published_at', { ascending: false })
+    .limit(selectedLimit);
+
+  if (queryError) {
+    error = queryError.message;
+    return [];
+  }
+
+  const rows = data ?? [];
+  const categorySlugs = [...new Set(rows.map((game) => game.category_slug).filter(Boolean))] as string[];
+  let categoryNames = new Map<string, string>();
+
+  if (categorySlugs.length > 0) {
+    const { data: categories } = await supabaseAdmin
+      .from('categories')
+      .select('slug,name')
+      .in('slug', categorySlugs);
+
+    categoryNames = new Map((categories ?? []).map((category) => [category.slug, category.name]));
+  }
+
+  return rows.map((game) => ({
+    id: String(game.id),
+    title: String(game.title),
+    slug: String(game.slug),
+    categorySlug: game.category_slug,
+    categoryName: game.category_slug ? categoryNames.get(game.category_slug) ?? game.category_slug : 'Uncategorized',
+    shortDescription: game.short_description,
+    description: game.description,
+    instructions: game.instructions,
+  }));
+};
+
+const getPromptForCandidate = async (candidate: Candidate) => {
+  if (target === 'games_missing_seo_description') {
+    const { template } = await adminGetPromptTemplateByKey('game_seo_description');
+    if (!template) throw new Error(promptTemplateError);
+    return renderPromptTemplate(template, {
+      title: candidate.title,
+      category: candidate.categoryName ?? candidate.categorySlug ?? 'Uncategorized',
+      shortDescription: candidate.shortDescription,
+      description: candidate.description,
+      instructions: candidate.instructions,
+      tags: [candidate.categorySlug ?? '', candidate.slug].filter(Boolean),
+    });
+  }
+
+  if (target === 'games_missing_description') {
+    const { template } = await adminGetPromptTemplateByKey('game_article');
+    if (!template) throw new Error(promptTemplateError);
+    return renderPromptTemplate(template, {
+      title: candidate.title,
+      category: candidate.categoryName ?? candidate.categorySlug ?? 'Uncategorized',
+      shortDescription: candidate.shortDescription,
+      description: candidate.description ?? candidate.shortDescription,
+      instructions: candidate.instructions,
+      tags: [candidate.categorySlug ?? '', candidate.slug].filter(Boolean),
+    });
+  }
+
+  const { template } = await adminGetPromptTemplateByKey('category_description');
+  if (!template) throw new Error(promptTemplateError);
+  return renderPromptTemplate(template, {
+    categoryName: candidate.title,
+    categorySlug: candidate.slug,
+    currentDescription: candidate.description,
+  });
+};
+
+const actionForTarget = () => {
+  switch (target) {
+    case 'games_missing_seo_description':
+      return 'bulk_generate_game_meta_description';
+    case 'games_missing_description':
+      return 'bulk_generate_game_article';
+    case 'categories_missing_description':
+      return 'bulk_generate_category_description';
+  }
+};
+
+const updateCandidate = async (candidate: Candidate, text: string) => {
+  if (!supabaseAdmin) {
+    throw new Error('Supabase admin client is not configured.');
+  }
+
+  if (target === 'categories_missing_description') {
+    const { error: updateError } = await supabaseAdmin
+      .from('categories')
+      .update({ description: text, updated_at: new Date().toISOString() })
+      .eq('id', candidate.id);
+
+    if (updateError) throw new Error(updateError.message);
+    return;
+  }
+
+  const field = targetOption().field;
+  const { error: updateError } = await supabaseAdmin
+    .from('games')
+    .update({ [field]: text, updated_at: new Date().toISOString() })
+    .eq('id', candidate.id);
+
+  if (updateError) throw new Error(updateError.message);
+};
+
+const runBulkGeneration = async () => {
+  const items = await fetchCandidates(target, limit);
+  const action = actionForTarget();
+
+  // TODO: Move larger AI jobs to a Cloudflare Queue or scheduled background worker.
+  for (let start = 0; start < items.length; start += BATCH_SIZE) {
+    const batch = items.slice(start, start + BATCH_SIZE);
+
+    for (const candidate of batch) {
+      let prompt = '';
+
+      try {
+        const renderedPrompt = await getPromptForCandidate(candidate);
+        prompt = formatPromptForLog(renderedPrompt.systemPrompt, renderedPrompt.userPrompt);
+        const generated = await generateAiText({
+          providerKey,
+          model,
+          system: renderedPrompt.systemPrompt,
+          prompt: renderedPrompt.userPrompt,
+          temperature: 0.65,
+          maxTokens: target === 'games_missing_seo_description' ? 220 : 900,
+        });
+
+        await updateCandidate(candidate, generated.text);
+        await adminCreateGenerationLog({
+          providerKey: generated.providerKey,
+          model: generated.model,
+          targetType: target === 'categories_missing_description' ? 'category' : 'game',
+          targetId: candidate.id,
+          targetSlug: candidate.slug,
+          action,
+          prompt,
+          result: generated.text,
+          status: 'success',
+        });
+
+        results.push({
+          id: candidate.id,
+          title: candidate.title,
+          slug: candidate.slug,
+          status: 'updated',
+          text: generated.text,
+        });
+      } catch (generationError) {
+        const message = generationError instanceof Error ? generationError.message : 'AI generation failed.';
+
+        await adminCreateGenerationLog({
+          providerKey,
+          model,
+          targetType: target === 'categories_missing_description' ? 'category' : 'game',
+          targetId: candidate.id,
+          targetSlug: candidate.slug,
+          action,
+          prompt,
+          status: 'error',
+          errorMessage: message,
+        });
+
+        results.push({
+          id: candidate.id,
+          title: candidate.title,
+          slug: candidate.slug,
+          status: 'error',
+          error: message,
+        });
+      }
+    }
+  }
+
+  const updatedCount = results.filter((result) => result.status === 'updated').length;
+  const errorCount = results.filter((result) => result.status === 'error').length;
+  success = `Bulk generation finished. Updated ${updatedCount}. Errors ${errorCount}.`;
+};
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const submittedTarget = String(formData.get('target') ?? '');
+  target = isBulkTarget(submittedTarget) ? submittedTarget : 'games_missing_seo_description';
+  limit = normalizeLimit(String(formData.get('limit') ?? DEFAULT_LIMIT));
+  providerKey = String(formData.get('provider') ?? '').trim();
+  model = String(formData.get('model') ?? '').trim();
+
+  if (formData.get('confirm_cost') !== 'on') {
+    error = 'Confirm that you understand this may use paid AI API credits.';
+  } else if (!providerKey) {
+    error = 'Choose an enabled AI provider.';
+  } else {
+    await runBulkGeneration();
+  }
+}
+
+if (!results.length) {
+  candidates = await fetchCandidates(target, limit);
+}
+
+const selectedProvider = providersResult.providers.find((provider) => provider.providerKey === providerKey);
+if (!model && selectedProvider?.defaultModel) {
+  model = selectedProvider.defaultModel;
+}
+
+---
+
+<AdminLayout
+  title="Bulk AI Generation | Free Game Zone"
+  description="Safely generate missing SEO content in small controlled batches."
+>
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/ai-models">Ai Models</a>
+    <a class="admin-link-btn" href="/admin/ai-models/logs">Generation logs</a>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-ai-bulk-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-ai-bulk-title">Bulk AI Generation</h1>
+        <p>Generate missing SEO fields in small, reviewed batches. The hard limit is {MAX_LIMIT} items per run.</p>
+      </div>
+    </div>
+
+    {providersResult.error && <p class="admin-error">{providersResult.error}</p>}
+    {error && <p class="admin-error">{error}</p>}
+    {success && <p class="admin-success">{success}</p>}
+
+    <form class="admin-game-form admin-settings-form" method="get" action="/admin/ai-models/bulk">
+      <section class="admin-settings-section" aria-labelledby="ai-bulk-controls-title">
+        <div class="admin-settings-section-heading">
+          <h2 id="ai-bulk-controls-title">Generation controls</h2>
+          <p>No job runs automatically. Preview candidates first, then confirm before generating.</p>
+        </div>
+
+        <p class="admin-warning">
+          Keep runs small. Bulk AI generation may use paid API credits and can take time.
+        </p>
+
+        <div class="admin-form-grid">
+          <label>
+            <span>Target</span>
+            <select name="target">
+              {
+                targetOptions.map((option) => (
+                  <option value={option.value} selected={option.value === target}>{option.label}</option>
+                ))
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Limit</span>
+            <input type="number" name="limit" min="1" max={MAX_LIMIT} value={limit} />
+            <small class="admin-field-note">Default {DEFAULT_LIMIT}. Max {MAX_LIMIT} per run.</small>
+          </label>
+
+          <label>
+            <span>Provider</span>
+            <select name="provider" required>
+              <option value="">Choose provider</option>
+              {
+                enabledProviders.map((provider) => (
+                  <option value={provider.providerKey} selected={provider.providerKey === providerKey}>
+                    {provider.providerName}{provider.isDefault ? ' (default)' : ''}
+                  </option>
+                ))
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Model</span>
+            <input type="text" name="model" value={model} placeholder={selectedProvider?.defaultModel ?? 'Provider default model'} />
+          </label>
+        </div>
+
+      </section>
+
+      <div class="admin-form-actions">
+        <button type="submit">Dry run preview</button>
+      </div>
+    </form>
+
+    <form class="admin-form-card" method="post" action="/admin/ai-models/bulk">
+      <input type="hidden" name="target" value={target} />
+      <input type="hidden" name="limit" value={limit} />
+      <input type="hidden" name="provider" value={providerKey} />
+      <input type="hidden" name="model" value={model} />
+
+      <div class="admin-settings-section-heading">
+        <h2>Run this batch</h2>
+        <p>
+          This will generate and save content for up to {limit} current preview candidates.
+          Review the result summary and generation logs after the run.
+        </p>
+      </div>
+
+      <div class="admin-checkbox-grid">
+        <label class="admin-form-wide">
+          <input type="checkbox" name="confirm_cost" />
+          I understand this may use paid AI API credits.
+        </label>
+      </div>
+
+      <div class="admin-form-actions">
+        <button type="submit" disabled={!candidates.length || !providerKey}>Run generation</button>
+      </div>
+    </form>
+
+    <section class="admin-form-card" aria-labelledby="ai-bulk-preview-title">
+      <div class="admin-settings-section-heading">
+        <h2 id="ai-bulk-preview-title">{results.length ? 'Result summary' : 'Dry run preview'}</h2>
+        <p>
+          {results.length
+            ? 'Generated content has been saved to the selected missing field. Review individual records as needed.'
+            : `${candidates.length} candidate${candidates.length === 1 ? '' : 's'} found for this run.`}
+        </p>
+      </div>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-ai-bulk-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Slug</th>
+              <th>Status</th>
+              <th>Preview / Error</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              results.length > 0 ? (
+                results.map((result) => (
+                  <tr>
+                    <td>{result.title}</td>
+                    <td>{result.slug}</td>
+                    <td>
+                      <span class:list={['admin-status-badge', result.status === 'updated' ? 'is-ok' : 'is-muted']}>
+                        {result.status}
+                      </span>
+                    </td>
+                    <td class="admin-ai-bulk-preview">{result.text ?? result.error ?? '-'}</td>
+                    <td>
+                      {target === 'categories_missing_description' ? (
+                        <a class="admin-link-btn" href={`/admin/categories/${result.id}/edit`}>Review</a>
+                      ) : (
+                        <a class="admin-link-btn" href={`/admin/games/${result.id}/edit`}>Review</a>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : candidates.length > 0 ? (
+                candidates.map((candidate) => (
+                  <tr>
+                    <td>{candidate.title}</td>
+                    <td>{candidate.slug}</td>
+                    <td><span class="admin-status-badge is-muted">preview</span></td>
+                    <td class="admin-ai-bulk-preview">
+                      {target === 'games_missing_seo_description'
+                        ? candidate.shortDescription ?? 'No short description'
+                        : candidate.description ?? 'Missing description'}
+                    </td>
+                    <td>
+                      {target === 'categories_missing_description' ? (
+                        <a class="admin-link-btn" href={`/admin/categories/${candidate.id}/edit`}>Review</a>
+                      ) : (
+                        <a class="admin-link-btn" href={`/admin/games/${candidate.id}/edit`}>Review</a>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colspan="5">No candidates found for this target.</td>
+                </tr>
+              )
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</AdminLayout>

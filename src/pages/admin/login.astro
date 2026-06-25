@@ -1,0 +1,73 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { createSupabaseServerClient, hasSupabaseEnv } from '../../lib/supabase';
+
+export const prerender = false;
+
+const ACCESS_COOKIE = 'admin-access-token';
+const REFRESH_COOKIE = 'admin-refresh-token';
+
+let errorMessage = '';
+let email = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  email = String(formData.get('email') ?? '').trim();
+  const password = String(formData.get('password') ?? '');
+
+  if (!hasSupabaseEnv) {
+    errorMessage = 'Supabase environment variables are missing.';
+  } else if (!email || !password) {
+    errorMessage = 'Email and password are required.';
+  } else {
+    const supabase = createSupabaseServerClient();
+    const { data, error } = supabase
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : { data: null, error: { message: 'Supabase client is not configured.' } };
+
+    if (error || !data?.session) {
+      errorMessage = error?.message ?? 'Unable to sign in.';
+    } else {
+      const secure = Astro.url.protocol === 'https:';
+
+      Astro.cookies.set(ACCESS_COOKIE, data.session.access_token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        path: '/',
+        maxAge: data.session.expires_in,
+      });
+      Astro.cookies.set(REFRESH_COOKIE, data.session.refresh_token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        path: '/',
+        maxAge: 60 * 60 * 24 * 30,
+      });
+
+      return Astro.redirect('/admin/');
+    }
+  }
+}
+---
+
+<AdminLayout
+  title="Admin Login | Free Game Zone"
+  description="Sign in to the Free Game Zone admin area."
+>
+  <section class="admin-auth-panel" aria-labelledby="admin-login-title">
+    <h1 id="admin-login-title">Admin Login</h1>
+    <form class="admin-form" method="post" action="/admin/login">
+      <label>
+        <span>Email</span>
+        <input type="email" name="email" autocomplete="email" value={email} required />
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" name="password" autocomplete="current-password" required />
+      </label>
+      {errorMessage && <p class="admin-error">{errorMessage}</p>}
+      <button type="submit">Login</button>
+    </form>
+  </section>
+</AdminLayout>

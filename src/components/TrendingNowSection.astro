@@ -1,0 +1,57 @@
+---
+import { getFallbackGradientClass, getFallbackIcon } from '../utils/gameFallback';
+import type { Game } from '../types/game';
+
+interface Props {
+  games: Game[];
+}
+
+const { games } = Astro.props;
+const visibleGames = games.slice(0, 4);
+---
+
+{
+  visibleGames.length > 0 && (
+    <section class="trending-now-section" aria-labelledby="trending-now-heading">
+      <div class="trending-now-header">
+        <span class="trending-now-icon" aria-hidden="true">
+          ↗
+        </span>
+        <div class="trending-now-title">
+          <h2 id="trending-now-heading">Trending now</h2>
+          <a class="trending-now-link" href="/trending-games/">
+            Show all games
+          </a>
+        </div>
+      </div>
+
+      <div class="trending-now-grid">
+        {visibleGames.map((game, index) => {
+          const fallbackGradientClass = getFallbackGradientClass(game.id);
+          const fallbackIcon = getFallbackIcon(game.id);
+          const showBadge = index === 0 || game.isTrending;
+
+          return (
+            <a class="trending-now-card" href={`/game/${game.slug}/`} aria-label={`Play ${game.title}`}>
+              <span class:list={['trending-now-placeholder', fallbackGradientClass]} aria-hidden="true">
+                <span>{fallbackIcon}</span>
+              </span>
+              {game.thumbnail && (
+                <img
+                  class="trending-now-card-img"
+                  src={game.thumbnail}
+                  alt={`${game.title} game thumbnail`}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  onerror="this.hidden = true"
+                />
+              )}
+              {showBadge && <span class="trending-now-badge">TOP</span>}
+              <span class="trending-now-card-title">{game.title}</span>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  )
+}

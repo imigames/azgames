@@ -1,0 +1,137 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminListReports,
+  adminUpdateReportStatus,
+  type AdminReportStatus,
+} from '../../lib/admin/reports-admin';
+
+export const prerender = false;
+
+const allowedStatuses = new Set(['new', 'resolved', 'ignored']);
+const requestedStatus = Astro.url.searchParams.get('status')?.trim() ?? '';
+const status = allowedStatuses.has(requestedStatus) ? requestedStatus : '';
+let actionError = '';
+let actionSuccess = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const id = String(formData.get('id') ?? '');
+  const nextStatus = String(formData.get('status') ?? '') as AdminReportStatus;
+
+  if (id && allowedStatuses.has(nextStatus)) {
+    const result = await adminUpdateReportStatus(id, nextStatus);
+
+    if (result.success) {
+      actionSuccess = `Report marked as ${nextStatus}.`;
+    } else {
+      actionError = result.error ?? 'Unable to update report.';
+    }
+  }
+}
+
+const { reports, error } = await adminListReports(status);
+const formatDate = (value: string) => {
+  if (!value) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+};
+---
+
+<AdminLayout title="Admin Reports | Free Game Zone" description="Review player game reports.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/">Dashboard</a>
+    <form method="post" action="/admin/">
+      <input type="hidden" name="intent" value="logout" />
+      <button class="admin-logout-btn" type="submit">Logout</button>
+    </form>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-reports-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-reports-title">Reports</h1>
+        <p>{reports.length} report{reports.length === 1 ? '' : 's'} found</p>
+      </div>
+    </div>
+
+    <form class="admin-filter-bar" method="get" action="/admin/reports">
+      <label>
+        <span>Status</span>
+        <select name="status">
+          <option value="" selected={status === ''}>All reports</option>
+          <option value="new" selected={status === 'new'}>New</option>
+          <option value="resolved" selected={status === 'resolved'}>Resolved</option>
+          <option value="ignored" selected={status === 'ignored'}>Ignored</option>
+        </select>
+      </label>
+      <button type="submit">Filter</button>
+      {status && <a class="admin-link-btn" href="/admin/reports">Clear</a>}
+    </form>
+
+    {error && <p class="admin-error">{error}</p>}
+    {actionError && <p class="admin-error">{actionError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Game</th>
+            <th>Slug</th>
+            <th>Reason</th>
+            <th>Details</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            reports.length > 0 ? (
+              reports.map((report) => (
+                <tr>
+                  <td>{report.gameTitle}</td>
+                  <td>
+                    {report.gameSlug ? (
+                      <a href={`/game/${report.gameSlug}/`}><code>{report.gameSlug}</code></a>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td>{report.reason}</td>
+                  <td>{report.details ?? '-'}</td>
+                  <td>{report.status}</td>
+                  <td>{formatDate(report.createdAt)}</td>
+                  <td>
+                    <div class="admin-table-actions">
+                      <form method="post" action={Astro.url.pathname + Astro.url.search}>
+                        <input type="hidden" name="id" value={report.id} />
+                        <input type="hidden" name="status" value="resolved" />
+                        <button type="submit" disabled={report.status === 'resolved'}>Resolve</button>
+                      </form>
+                      <form method="post" action={Astro.url.pathname + Astro.url.search}>
+                        <input type="hidden" name="id" value={report.id} />
+                        <input type="hidden" name="status" value="ignored" />
+                        <button type="submit" disabled={report.status === 'ignored'}>Ignore</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colspan="7">No reports found.</td>
+              </tr>
+            )
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</AdminLayout>

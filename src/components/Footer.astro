@@ -1,0 +1,49 @@
+---
+import { getPublicSettings } from '../lib/settings';
+import type { PublicSettings } from '../lib/settings';
+
+const links = [
+  { label: 'About us', href: '/about-us' },
+  {
+    label: 'Copyright infringement notice procedure',
+    href: '/copyright-infringement-notice-procedure',
+  },
+  { label: 'Term of use', href: '/term-of-use' },
+];
+
+interface Props {
+  settings?: PublicSettings;
+}
+
+const settings = Astro.props.settings ?? await getPublicSettings();
+---
+
+<footer class="site-footer">
+  <div class="footer-shell">
+    <div class="footer-brand-block">
+      <a class="footer-logo" href="/" aria-label={`${settings.siteName} home`}>{settings.siteName}</a>
+      <p class="footer-tagline">Play free online games instantly.</p>
+      <p class="footer-copy">{settings.footerCopyright}</p>
+    </div>
+
+    <nav class="footer-column" aria-label="Popular pages">
+      <strong>Popular</strong>
+      <a href="/popular-games/">Popular games</a>
+      <a href="/new-games/">New games</a>
+      <a href="/category/car-games/">Car games</a>
+      <a href="/category/puzzle-games/">Puzzle games</a>
+    </nav>
+
+    <nav class="footer-column" aria-label="Help and support">
+      <strong>Help and Support</strong>
+      <a href="/contact-us">Contact us</a>
+      <a href="/privacy-policy">Privacy policy</a>
+      <a href="/copyright-infringement-notice-procedure">Copyright requests</a>
+    </nav>
+
+    <nav class="footer-column footer-links" aria-label="Footer navigation">
+      <strong>Get to know us</strong>
+      {links.map((link) => <a href={link.href}>{link.label}</a>)}
+    </nav>
+  </div>
+</footer>

@@ -1,0 +1,85 @@
+---
+import '../styles/global.css';
+import CategoryNav from '../components/CategoryNav.astro';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import { getPublicSettings } from '../lib/settings';
+
+interface Props {
+  title?: string;
+  description?: string;
+  activeCategory?: string;
+  canonicalPath?: string;
+  image?: string;
+  canonical?: string;
+  ogImage?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogType?: 'website' | 'article';
+  robots?: string;
+}
+
+const {
+  title,
+  description,
+  activeCategory,
+  canonicalPath,
+  image,
+  canonical,
+  ogImage,
+  ogTitle,
+  ogDescription,
+  ogType = 'website',
+  robots = "",
+} = Astro.props;
+
+const settings = await getPublicSettings();
+const pageTitle = title ?? settings.defaultMetaTitle;
+const pageDescription = description ?? settings.defaultMetaDescription;
+const pageOgTitle = ogTitle ?? pageTitle;
+const pageOgDescription = ogDescription ?? pageDescription;
+const toAbsoluteUrl = (value: string) => new URL(value, settings.siteUrl).toString();
+const pageCanonicalPath = canonicalPath ?? canonical ?? Astro.url.pathname;
+const pageImage = image ?? ogImage ?? settings.defaultOgImage;
+const canonicalUrl = toAbsoluteUrl(pageCanonicalPath);
+const ogImageUrl = pageImage ? toAbsoluteUrl(pageImage) : undefined;
+const faviconUrl = settings.siteFaviconUrl.trim() || '/favicon.svg';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    {robots && <meta name="robots" content={robots} />}
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="alternate" hreflang="en" href={canonicalUrl} />
+    <link rel="alternate" hreflang="x-default" href={canonicalUrl} />
+    <meta property="og:site_name" content={settings.siteName} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={pageOgTitle} />
+    <meta property="og:description" content={pageOgDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    {ogImageUrl && <meta property="og:image" content={ogImageUrl} />}
+    {ogImageUrl && <meta property="og:image:alt" content={`${settings.siteName} free browser games preview`} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageOgTitle} />
+    <meta name="twitter:description" content={pageOgDescription} />
+    {ogImageUrl && <meta name="twitter:image" content={ogImageUrl} />}
+    <link rel="icon" href={faviconUrl} />
+  </head>
+  <body>
+    <div class="body-wrapper">
+      <div class="poki-public-layout">
+        <Header settings={settings} />
+        <CategoryNav activeSlug={activeCategory} />
+        <main class="site-shell">
+          <slot />
+        </main>
+      </div>
+      <Footer settings={settings} />
+    </div>
+  </body>
+</html>

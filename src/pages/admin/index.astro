@@ -1,0 +1,112 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { adminGetDashboardStats } from '../../lib/admin/dashboard-admin';
+
+export const prerender = false;
+
+const ACCESS_COOKIE = 'admin-access-token';
+const REFRESH_COOKIE = 'admin-refresh-token';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+
+  if (formData.get('intent') === 'logout') {
+    Astro.cookies.delete(ACCESS_COOKIE, { path: '/' });
+    Astro.cookies.delete(REFRESH_COOKIE, { path: '/' });
+    return Astro.redirect('/admin/login');
+  }
+}
+
+const adminCards = [
+  { title: 'Games', text: 'Manage game records and publishing state.', href: '/admin/games' },
+  { title: 'Categories', text: 'Organize game collections and SEO metadata.', href: '/admin/categories' },
+  { title: 'Reports', text: 'Review player reports and moderation notes.', href: '/admin/reports' },
+  { title: 'Comments', text: 'Moderate player comments before they appear publicly.', href: '/admin/comments' },
+  { title: 'Contact Messages', text: 'Review visitor feedback and business inquiries.', href: '/admin/contact-us' },
+  { title: 'Import', text: 'Prepare bulk imports from files or providers.', href: '/admin/import' },
+  {
+    title: 'Prompt Templates',
+    text: 'Manage AI prompts for game and category SEO generation.',
+    href: '/admin/prompt-templates',
+    icon: 'PT',
+  },
+  {
+    title: 'Settings',
+    text: 'Manage website metadata, SEO defaults, and global site options.',
+    href: '/admin/settings',
+    icon: '⚙️',
+  },
+];
+
+const stats = await adminGetDashboardStats();
+const formatNumber = (value: number) => new Intl.NumberFormat('en').format(value);
+---
+
+<AdminLayout
+  title="Admin Dashboard | Free Game Zone"
+  description="Free Game Zone admin dashboard."
+>
+  <form slot="actions" method="post" action="/admin/">
+    <input type="hidden" name="intent" value="logout" />
+    <button class="admin-logout-btn" type="submit">Logout</button>
+  </form>
+
+  <section class="admin-dashboard" aria-labelledby="admin-dashboard-title">
+    <div>
+      <h1 id="admin-dashboard-title">Admin Dashboard</h1>
+      <p>Choose a section to manage. CRUD tools will be added in a later step.</p>
+    </div>
+
+    {stats.error && <p class="admin-error">{stats.error}</p>}
+
+    <div class="admin-card-grid">
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.totalGames)}</h2>
+        <p>Total games</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.totalReports)}</h2>
+        <p>Total reports</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.pendingComments)}</h2>
+        <p>Pending comments</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.approvedComments)}</h2>
+        <p>Approved comments</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.newContactMessages)}</h2>
+        <p>New contact messages</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.totalContactMessages)}</h2>
+        <p>Total contact messages</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.totalPlays)}</h2>
+        <p>Total plays</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.activePromptTemplates)}</h2>
+        <p>Active prompt templates</p>
+      </div>
+      <div class="admin-card admin-stat-card">
+        <h2>{formatNumber(stats.totalPromptTemplates)}</h2>
+        <p>Total prompt templates</p>
+      </div>
+    </div>
+
+    <div class="admin-card-grid">
+      {
+        adminCards.map((card) => (
+          <a class="admin-card" href={card.href}>
+            <h2>{card.icon && <span class="admin-card-icon" aria-hidden="true">{card.icon}</span>}{card.title}</h2>
+            <p>{card.text}</p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+</AdminLayout>

@@ -1,0 +1,174 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import {
+  adminListContactMessages,
+  adminUpdateContactMessageStatus,
+} from '../../lib/contact';
+
+export const prerender = false;
+
+const allowedStatuses = new Set(['new', 'read', 'replied', 'archived', 'spam']);
+const limit = 40;
+const requestedStatus = Astro.url.searchParams.get('status')?.trim() ?? '';
+const search = Astro.url.searchParams.get('search')?.trim() ?? '';
+const requestedPage = Number(Astro.url.searchParams.get('page') ?? '1');
+const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
+const status = allowedStatuses.has(requestedStatus) ? requestedStatus : '';
+let actionError = '';
+let actionSuccess = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const id = String(formData.get('id') ?? '');
+  const nextStatus = String(formData.get('status') ?? '');
+
+  if (id && allowedStatuses.has(nextStatus)) {
+    const result = await adminUpdateContactMessageStatus(id, nextStatus);
+
+    if (result.success) {
+      actionSuccess = `Message marked as ${nextStatus}.`;
+    } else {
+      actionError = result.error ?? 'Unable to update message.';
+    }
+  }
+}
+
+const messagesPage = await adminListContactMessages({ status, search, page, limit: limit + 1 });
+const hasNext = messagesPage.length > limit;
+const messages = messagesPage.slice(0, limit);
+
+const buildPageHref = (pageNumber: number) => {
+  const params = new URLSearchParams();
+
+  if (search) {
+    params.set('search', search);
+  }
+
+  if (status) {
+    params.set('status', status);
+  }
+
+  if (pageNumber > 1) {
+    params.set('page', String(pageNumber));
+  }
+
+  const query = params.toString();
+  return query ? `/admin/contact-us?${query}` : '/admin/contact-us';
+};
+
+const formatDate = (value: string | null) => {
+  if (!value) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+};
+const previewText = (value: string) => (value.length > 180 ? `${value.slice(0, 180)}...` : value);
+const getActionUrl = () => Astro.url.pathname + Astro.url.search;
+---
+
+<AdminLayout title="Contact messages | Free Game Zone" description="Manage Contact Us messages.">
+  <div slot="actions" class="admin-header-actions">
+    <a class="admin-link-btn" href="/admin/">Dashboard</a>
+    <form method="post" action="/admin/">
+      <input type="hidden" name="intent" value="logout" />
+      <button class="admin-logout-btn" type="submit">Logout</button>
+    </form>
+  </div>
+
+  <section class="admin-list-page" aria-labelledby="admin-contact-title">
+    <div class="admin-list-heading">
+      <div>
+        <h1 id="admin-contact-title">Contact messages</h1>
+        <p>{messages.length} message{messages.length === 1 ? '' : 's'} shown</p>
+      </div>
+    </div>
+
+    <form class="admin-filter-bar" method="get" action="/admin/contact-us">
+      <label>
+        <span>Search</span>
+        <input type="search" name="search" value={search} placeholder="Name, email, subject, message" />
+      </label>
+      <label>
+        <span>Status</span>
+        <select name="status">
+          <option value="" selected={status === ''}>All messages</option>
+          <option value="new" selected={status === 'new'}>New</option>
+          <option value="read" selected={status === 'read'}>Read</option>
+          <option value="replied" selected={status === 'replied'}>Replied</option>
+          <option value="archived" selected={status === 'archived'}>Archived</option>
+          <option value="spam" selected={status === 'spam'}>Spam</option>
+        </select>
+      </label>
+      <button type="submit">Filter</button>
+      {(status || search) && <a class="admin-link-btn" href="/admin/contact-us">Clear</a>}
+    </form>
+
+    {actionError && <p class="admin-error">{actionError}</p>}
+    {actionSuccess && <p class="admin-success">{actionSuccess}</p>}
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Subject</th>
+            <th>Message</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            messages.length > 0 ? (
+              messages.map((message) => (
+                <tr>
+                  <td>{message.name}</td>
+                  <td><a href={`mailto:${message.email}`}>{message.email}</a></td>
+                  <td>{message.subject ?? '-'}</td>
+                  <td>{previewText(message.message)}</td>
+                  <td>{message.status}</td>
+                  <td>{formatDate(message.createdAt)}</td>
+                  <td>
+                    <div class="admin-table-actions">
+                      <a href={`/admin/contact-us/${message.id}`}>View</a>
+                      {[
+                        { status: 'read', label: 'Mark as read' },
+                        { status: 'replied', label: 'Mark replied' },
+                        { status: 'archived', label: 'Archive' },
+                        { status: 'spam', label: 'Mark spam' },
+                      ].map((action) => (
+                        <form method="post" action={getActionUrl()}>
+                          <input type="hidden" name="id" value={message.id} />
+                          <input type="hidden" name="status" value={action.status} />
+                          <button type="submit" disabled={message.status === action.status}>
+                            {action.label}
+                          </button>
+                        </form>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colspan="7">No contact messages found.</td>
+              </tr>
+            )
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="pagination" aria-label="Contact messages pagination">
+      <a class:list={['pagination-link', { 'is-disabled': page <= 1 }]} href={buildPageHref(page - 1)}>Previous</a>
+      <span>Page {page}</span>
+      <a class:list={['pagination-link', { 'is-disabled': !hasNext }]} href={buildPageHref(page + 1)}>Next</a>
+    </nav>
+  </section>
+</AdminLayout>
